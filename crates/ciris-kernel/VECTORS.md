@@ -397,5 +397,5 @@ seating citing its set (G12, G13). Two rulings meet how the crate reads its rows
 - G9 is bridged: a resignation is minted as `membership:resignation` with no target, and the store presents it as a
   withdrawal of the member's own acceptance of the stay standing at the head it names (WIRE_MAP.md G9). Cases 5 and 7
   then mint; case 16 is a founder's withdrawal of the founding record (N2). Cases 68 and 69 pin the bridge.
-- G15 is bridged: case 50 mints the countersign as a further statement over the act's own payload, and the store
-  presents it as a `Countersign` row view (WIRE_MAP.md G15).
+- G15: case 50 mints the countersign as one more statement over the act's own payload (the official's), and the
+  store presents the act row with that voice among its cosigners, nothing else (WIRE_MAP.md G15).
