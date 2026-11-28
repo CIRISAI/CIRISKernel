@@ -625,25 +625,87 @@ def against_member(u, by):
     return affiliation_removal(u, by) or (family(u) in LONE_ACTS and kind_of(by, u.get("obj")) == "affiliation")
 
 
-def regrown_fails(S, q, void=frozenset()):
-    """The r81 B2 rule, read over the rows the reader holds: q, a lone holder's own conferral of a duty over a room
-    (own_conferral), concurrent with growth of the room's body (a counted act of conf `group` over it, the acceptance
-    completing one, or the countersign deciding one, neither in the other's past, none void), fails where re-counted
-    over its own past with that growth and their pasts (the body at the newest counted changes the reader holds): its
-    signer is no more the lone holder there (authority_gate). A holder's own concurrent lone conferrals are one batch,
-    no growth against each other (own conferrals are no counted act of conf group)."""
-    obj = q.get("obj")
-    if not own_conferral(q, obj, S.by): return False
-    counted = lambda x: x is not None and x.get("conf") == "group" and x.get("obj") == obj and CP.is_counted_act(x, obj)
-    growth = [x for x in S.Cs if x["id"] not in void and x["id"] != q["id"] and x["id"] not in S.anc[q["id"]]
-              and q["id"] not in S.anc[x["id"]]
-              and (counted(x) or (x["kind"] == "accept" and counted(S.by.get(x.get("of")))))]
-    if not growth: return False
+# ---- THE re-count on growth (the DRY item; r81 B2 generalised to every conferral, attack-r's r95 f2/f5) -----------
+def body_change(q, o):
+    """A change of group `o`'s body: a counted act over it (conf group, naming its head), or a single key's own or
+    conferred offer of a seat over it other than a roster seat (a lone conferral of a duty, an officer or license seat)."""
+    if q["kind"] not in ("offer", "unseat") or q.get("obj") != o or q["id"] == o:
+        return False
+    if q.get("conf") == "group":
+        return bool(q.get("head"))
+    return q.get("conf") in ("self", "seat") and q.get("scope") not in ("member", AGENT)
+
+
+def growth_of(S, o):
+    """The rows that GROW group `o`'s body among the concluded rows S holds: its changes that seat (body_change, an
+    offer) and the acceptances completing them (a one-officer body's countersign is a voice on the act's own row,
+    G15). An end is no growth: the end rule reads it (an end cuts what it ends that is not in its past; MUTATION
+    growth_ends_read: an end read as growth too)."""
+    grows = lambda q: body_change(q, o) and (q["kind"] == "offer" or "growth_ends_read" in MUT)
+    return [q for q in S.Cs if grows(q) or (q["kind"] == "accept" and q.get("of") in S.by and grows(S.by[q["of"]]))]
+
+
+def _duty_scope(S, o, sc):
+    return sc is not None and (sc == "duty" or is_duty(sc, declared(S.by, o)))
+
+
+def one_batch(S, q, c, o):
+    """A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: growth row `c` (or
+    the offer it accepts) and act `q`, both a single key's own or conferred offer of a duty over `o` by the same key,
+    are not growth against each other (MUTATION lone_batch_unread)."""
+    if "lone_batch_unread" in MUT:
+        return False
+    off = S.by.get(c.get("of")) if c["kind"] == "accept" else c
+    lone = lambda x: x is not None and x["kind"] == "offer" and x.get("conf") in ("self", "seat") \
+        and _duty_scope(S, o, x.get("scope"))
+    return lone(q) and lone(off) and off["signer"] == q["signer"]
+
+
+def concurrent_growth(S, q, o, void=frozenset()):
+    """The growth of `o`'s body the reader holds concurrent with row `q` (neither in the other's past), none void
+    (MUTATION growth_held_unread: none read)."""
+    if "growth_held_unread" in MUT:
+        return []
+    return [c for c in growth_of(S, o) if c["id"] != q["id"] and c["id"] not in void and c["id"] not in S.anc[q["id"]]
+            and q["id"] not in S.anc[c["id"]] and not one_batch(S, q, c, o)]
+
+
+def with_growth(S, q, o, void=frozenset()):
+    """The concluded rows `q`'s authority over `o` is re-counted over: its own past, with the concurrent growth the
+    reader holds and their pasts (the body at the newest counted changes the reader holds)."""
     ids = set(S.anc[q["id"]])
-    for x in growth:
-        ids |= {x["id"]} | set(S.anc[x["id"]])
-    T = [x for x in S.Cs if x["id"] in ids]
-    return not authority_gate(q, T, {x["id"]: x for x in T})
+    for c in concurrent_growth(S, q, o, void):
+        ids |= {c["id"]} | set(S.anc[c["id"]])
+    return [x for x in S.Cs if x["id"] in ids]
+
+
+def recount_on_growth(S, q, o=None, void=frozenset(), other=None):
+    """THE re-count on growth (one reading for the seat walk and the trust walk): act `q` over group `o` (its object),
+    CONCURRENT with growth of `o`'s body the reader holds (concurrent_growth), still holds over the grown body: over
+    its own past with that growth and their pasts (with_growth), at the newest counted changes there. True where no
+    growth is concurrent with it (an act the growth has in its past stands as made).
+        a lone conferral   a single key's own or conferred offer (conf self or seat) of an authority seat: by the one
+                           gate (authority_gate), its signer the body over the grown rows;
+        a counted act      a conferral the count concludes (conf group): its count met again at the newest counted
+                           changes among the grown rows (MUTATION counted_recount_unread). An election's seating (C1 to
+                           C5) and a lift are read by their own counts, not here;
+        any other act      `other(T)` where the caller gives one (the trust walk's edge: its owner's authority set),
+                           else it stands.
+    MUTATION recount_unread: no re-count read."""
+    if "recount_unread" in MUT: return True
+    o = q.get("obj") if o is None else o
+    growth = concurrent_growth(S, q, o, void)
+    if not growth: return True
+    T = with_growth(S, q, o, void)
+    byT = {x["id"]: x for x in T}
+    if q["kind"] == "offer" and q.get("conf") in ("self", "seat"):
+        return "seat_recount_unread" in MUT or authority_gate(q, T, byT)
+    if q["kind"] == "offer" and q.get("conf") == "group" and q.get("head") and "counted_recount_unread" not in MUT:
+        if is_election(q) or (act_of(q, byT) or (None,))[0] == "lift": return True
+        past = lambda a, b: a in S.anc[b]
+        heads = newest_changes(T, past, o, byT)
+        return count_met(dict(q, head=heads), T, past)
+    return other(T) if other is not None else True
 
 
 def affiliation_act(u, by):
@@ -2264,9 +2326,12 @@ class Seats:
         undecided = frozenset(q["id"] for q in Cs if q["kind"] == "offer" and C.counts(q) and q["id"] not in V
                               and not decided(q))
         self.stale = V = V | undecided
-        # r81 B2: a lone holder's own duty conferral concurrent with a counted act of the grown body is re-counted
-        # against it (regrown_fails); one that fails seats nothing, and every row built on it is void with it
-        regrown = frozenset(q["id"] for q in Cs if C.counts(q) and q["id"] not in V and regrown_fails(S, q, V)) \
+        # the re-count on growth (recount_on_growth; r81 B2 generalised): a conferral of an authority seat concurrent
+        # with growth of its body the reader holds is re-counted over the grown body; one that fails seats nothing, and
+        # every row built on it is void with it
+        regrown = frozenset(q["id"] for q in Cs if C.counts(q) and q["id"] not in V and q["kind"] == "offer"
+                            and body_change(q, q.get("obj")) and q.get("scope") not in ("member", AGENT)
+                            and not recount_on_growth(S, q, None, V)) \
             if "lone_regrowth_unread" not in MUT else frozenset()
         if regrown:
             self.stale = V = V | regrown | frozenset(q["id"] for q in Cs if S.anc[q["id"]] & regrown)

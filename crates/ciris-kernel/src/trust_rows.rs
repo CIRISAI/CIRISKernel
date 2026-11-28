@@ -39,8 +39,9 @@ use crate::cut::CutSpec;
 use crate::graph::Graph;
 use crate::layers::{Concluded, Past};
 use crate::seat::{
-    authority_gate_at, countersigned, declared_count, ended_seats, for_reader, kind_of, policy_for, still_met, voices,
-    Act, CommunityKind, Conf, Obj, ScopeClass, SeatKind, SeatLaw, SeatRow, Seats, AGENT, OFFICER,
+    body_change, concurrent_growth, countersigned, declared_count, ended_seats, for_reader, kind_of, policy_for,
+    recount_on_growth, scope_class, still_met, voices, Act, CommunityKind, Conf, Obj, ScopeClass, SeatKind, SeatLaw,
+    SeatRow, Seats, AGENT, OFFICER,
 };
 use crate::trust::{reaches, Accepts, Charters, HOP_CAP};
 use crate::{Dated, Row};
@@ -219,24 +220,6 @@ fn ends_keys<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, e: &R) -> 
     ended_seats(&by, e).into_iter().filter_map(|(k, sc, o)| o.map(|o| (k, o, sc))).collect()
 }
 
-/// The standing a seat of scope `sc` over `o` gives: `duty` for any duty (a holder of any one duty is a duty holder:
-/// `duty`, a duty the law names, `moderate`, or one the record declares), or the scope itself.
-fn scope_class<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, o: &ObjOf<R>, sc: Option<&str>) -> Option<String> {
-    let sc = sc?;
-    let head = sc.split(':').next().unwrap_or(sc);
-    let declared = match o {
-        Obj::Row(i) => c.g.idx(i).is_some_and(|x| {
-            c.g.row(x).duties().iter().any(|d| d.as_ref() == head && d.as_ref() != "member" && d.as_ref() != AGENT)
-        }),
-        Obj::Key(_) => false,
-    };
-    let community = matches!(o, Obj::Row(i) if c.g.idx(i).is_some_and(|x| founding_row(c.g.row(x))));
-    if sc == "duty" || law.duties.iter().any(|d| d == head) || (community && head == "moderate") || declared {
-        return Some(String::from("duty"));
-    }
-    Some(String::from(sc))
-}
-
 /// The standings act `q` over `o` rests on (the classes [`scope_class`] gives): a counted row's body (`counted`); a
 /// row conferred under a seat, that seat's; a single key's own offer over a group, its authority body's; an edge
 /// speaking for a group, its authority body's, and for a person, the roster's `key`; a licence, its seat's or its
@@ -308,19 +291,6 @@ fn loses<R: TrustRow, S: CutSpec<R>>(
 }
 
 // ---- the reader's line over a group's body (the r77 attack: body growth is a counted change, not an end) ----------
-
-/// A change of group `o`'s body: a counted act over it (`Conf::Group`, naming its head), or a single key's own or
-/// conferred offer of a seat over it other than a roster seat (a lone conferral of a duty, an officer or license seat).
-fn body_change<R: SeatRow>(q: &R, o: &ObjOf<R>) -> bool {
-    if !matches!(q.seat_kind(), SeatKind::Offer | SeatKind::Unseat) || q.obj().as_ref() != Some(o) || founding_row(q) {
-        return false;
-    }
-    match q.conf() {
-        Some(Conf::Group) => !q.head().is_empty(),
-        Some(Conf::Own) | Some(Conf::Seat) => q.scope().is_none_or(|s| s.as_ref() != "member" && s.as_ref() != AGENT),
-        _ => false,
-    }
-}
 
 /// The object a row is over, as the reader's line reads it (`checkpoint.object_of`): its `obj`, its `room`, or the
 /// object of the row its `of` or `target` names.
@@ -414,82 +384,17 @@ fn sub_of<'a, R: Row>(c: &Concluded<'a, R>, idx: &[usize]) -> Concluded<'a, R> {
     Concluded::with(g, Some(idx.iter().map(|&j| c.concluded(j)).collect()))
 }
 
-// ---- body growth over the rows the reader HOLDS (the tips fold's rule, which a lone duty conferral already reads) ---
-
-/// The rows that grow group `o`'s body among the concluded rows: its changes ([`body_change`]) and the acceptances
-/// completing them (a one-officer body's countersign is a voice on the act's own row, G15).
-fn growth_of<R: SeatRow>(c: &Concluded<'_, R>, o: &ObjOf<R>) -> Vec<usize> {
-    c.cs()
-        .iter()
-        .copied()
-        .filter(|&x| {
-            let q = c.g.row(x);
-            body_change(q, o)
-                || (q.seat_kind() == SeatKind::Accept
-                    && q.of().and_then(|i| c.g.idx(i)).is_some_and(|i| body_change(c.g.row(i), o)))
-        })
-        .collect()
-}
-
-/// The growth of `o`'s body the reader holds concurrent with row `q` (neither in the other's past).
-fn concurrent_growth<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, q: usize, o: &ObjOf<R>) -> Vec<usize> {
-    growth_of(c, o)
-        .into_iter()
-        .filter(|&x| x != q && !c.g.ancestors(q).has(x) && !c.g.ancestors(x).has(q) && !one_batch(c, law, q, x, o))
-        .collect()
-}
-
-/// A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: growth row `x` (or the
-/// offer it accepts) and act `q`, both a single key's own or conferred offer of a duty over `o` by the same key, are
-/// not growth against each other.
-fn one_batch<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, q: usize, x: usize, o: &ObjOf<R>) -> bool {
-    let xr = c.g.row(x);
-    let off = if xr.seat_kind() == SeatKind::Accept {
-        match xr.of().and_then(|i| c.g.idx(i)) {
-            Some(i) => c.g.row(i),
-            None => return false,
-        }
-    } else {
-        xr
-    };
-    let lone = |r: &R| {
-        r.seat_kind() == SeatKind::Offer
-            && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat))
-            && scope_class(c, law, o, r.scope().map(|w| w.as_ref())).as_deref() == Some("duty")
-    };
-    let qr = c.g.row(q);
-    lone(qr) && lone(off) && off.signer() == qr.signer()
-}
-
-/// The rows `q`'s authority over `o` is re-counted over: its own past, with the concurrent growth the reader holds
-/// and their pasts: the body at the newest counted changes the reader holds.
-fn with_growth<R: SeatRow>(c: &Concluded<'_, R>, q: usize, growth: &[usize]) -> Vec<usize> {
-    let qa = c.g.ancestors(q);
-    (0..c.g.len()).filter(|&j| qa.has(j) || growth.iter().any(|&x| x == j || c.g.ancestors(x).has(j))).collect()
-}
+// ---- body growth over the rows the reader HOLDS: the seat model's one reading ([`crate::seat::recount_on_growth`],
+// the DRY item "re-count on growth"), read here as the seat walk reads it ---------------------------------------------
 
 /// Authority act `q` over `o`, CONCURRENT with growth of the body the reader holds, still holds counted over the grown
-/// body (as the tips fold re-counts a lone duty conferral): a single key's own or conferred seat by the one gate
-/// ([`crate::seat::authority_gate_at`]), an edge by its owner's authority set. An act the growth has in its past
-/// stands as made; a counted act (`Conf::Group`) is the tips fold's.
+/// body: [`crate::seat::recount_on_growth`], the one re-count (a lone conferral by the one gate, a counted conferral
+/// by its count at the newest counted changes), with an edge read by its owner's authority set over the grown rows.
 fn recounted<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, q: usize, o: &ObjOf<R>) -> bool {
     let c = seats.c();
-    let growth = concurrent_growth(c, seats.law(), q, o);
-    if growth.is_empty() {
-        return true;
-    }
-    let idx = with_growth(c, q, &growth);
     let r = c.g.row(q);
-    if r.seat_kind() == SeatKind::Offer && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat)) {
-        let (_, with) = judged(c, q, &idx);
-        let last = with.g.len() - 1;
-        let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
-        return authority_gate_at(seats.law(), seats.spec(), &Past::new(&with.g, last, &p));
-    }
-    if r.is_delegates_to() {
-        return speaks_over(seats, q, &idx, &owner(r));
-    }
-    true
+    let edge = |idx: &[usize]| !r.is_delegates_to() || speaks_over(seats, q, idx, &owner(r));
+    recount_on_growth(c, seats.law(), seats.spec(), q, o, &BTreeSet::new(), Some(&edge))
 }
 
 /// A counted row: an offer or unseat a group's count concludes (`Conf::Group`), naming its heads.
@@ -555,7 +460,7 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
     // (`amend` false leaves it out, as an amendment: it changes the rule, it cuts nothing)
     if read && amend {
         if let Some(o) = authority_act_over(c, c.g.row(i)) {
-            for x in concurrent_growth(c, seats.law(), i, &o) {
+            for x in concurrent_growth(c, seats.law(), i, &o, &BTreeSet::new()) {
                 rows.extend((0..c.g.len()).filter(|&j| j != i && (j == x || c.g.ancestors(x).has(j))));
             }
         }
