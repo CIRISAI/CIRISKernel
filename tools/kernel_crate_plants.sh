@@ -286,7 +286,7 @@ plant "a second seat row of a seated key is refused" src/seat.rs '    removed
         || p.rows().any(|w| {'
 plant "one barred key does not bar a batch admission" src/seat.rs 'keys.into_iter().any(|k| {' 'keys.into_iter().all(|k| {'
 plant "a key's person: two persons read as the first" src/seat.rs '    if names.len() == 1 {' '    if !names.is_empty() {'
-plant "a key's person: any group is a person" src/seat.rs 'if kind_of(law, &get, &o) != Some(CommunityKind::SelfRoster) {' 'if kind_of(law, &get, &o).is_none() {'
+plant "a key's person: any group is a person" src/seat.rs 'if !is_self_kind(kind_of(law, &get, &o)) {' 'if kind_of(law, &get, &o).is_none() {'
 plant "a key's person: the key's own end is not read" src/seat.rs 'if keep(&o, s.as_ref(), &k) && !revoked_itself(rows.iter().copied(), &k) {' 'if keep(&o, s.as_ref(), &k) {'
 plant "a key's person: an admission in the past is enough (evictions unread)" src/seat.rs '        for k in seats.holders(s.as_ref(), &o, None) {' '        let seated: BTreeSet<R::Key> = rows.iter().filter(|q| q.seat_kind() == SeatKind::Offer && q.obj().as_ref() == Some(&o)).flat_map(|q| q.to().iter().cloned()).collect();
         for k in seated.into_iter().chain(seats.holders(s.as_ref(), &o, None)) {'
@@ -310,8 +310,8 @@ plant "no reader's line is read: a rival stalls a reader on the first roster (th
 plant "two concurrent lone evictions of each other both land (r99 M1)" src/seat.rs '                    .any(|(j, t2, o2, _, s2)| j != i && o2 == o && t2 == s && t == s2 && g.concurrent(*i, *j))' '                    .any(|_| false)'
 plant "a self roster's landed lone-path eviction ends nothing (the window an outcome only)" src/seat.rs '            if landed.iter().any(|(l, t, lo, lsc)| {' '            if false && landed.iter().any(|(l, t, lo, lsc)| {'
 plant "a self roster's landed lone-path addition seats nothing" src/seat.rs '            for k in keys.iter().filter(|k| p.signer() == *k || p.cosigners().contains(*k)) {' '            for k in keys.iter().filter(|_| false) {'
-plant "a family's founding read as a self roster's (r99 drift)" src/seat.rs '        && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
-}' '        && g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()) == Some(CommunityKind::SelfRoster)
+plant "a family's founding read as a self roster's (r99 drift)" src/seat.rs '    g.seat_kind() == SeatKind::Offer && founding(g) && is_self_kind(kind_of(law, &get, &Obj::Row(g.id().clone())))
+}' '    g.seat_kind() == SeatKind::Offer && founding(g) && is_self_kind(g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()))
 }'
 plant "a landed self-roster window is no head of a later count" src/seat.rs '        (change(law, q, obj, room.as_deref()) || landed_change(p, q, obj))' '        change(law, q, obj, room.as_deref())'
 plant "the reader's line read out of order: a later row over the rival takes it up too (r100r)" src/seat.rs '.filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a)))' '.filter(|_| true)'

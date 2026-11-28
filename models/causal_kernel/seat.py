@@ -227,6 +227,9 @@ ACTS = acts_table()     # read by policy_in_force (the refusal), with the bindin
 # a founding row of scope `key` founds a voice's roster of room keys (CC 3.1.3.2): the table's kind `voice`, bound to the
 # self roster's rows; a self roster's founding scope is `self`
 KINDS = {"member": "community", "duty": "community", "holder": "accord", "self": "self", "key": "voice"}
+# a person's own rosters: a self roster and a voice's roster of room keys (the table's kind `voice` is the self roster's
+# door for a voice's keys), read alike by the person a key counts as
+SELF_KINDS = ("self", "voice")
 
 
 def kind_of(by, obj, is_key=False):
@@ -3404,7 +3407,7 @@ def rosters_of(P, k, keep=lambda g: True):
     if key_record_ended(P, k): return []
     by = {q["id"]: q for q in P}
     selves = [g for g in P if g["kind"] == "offer" and g.get("obj") == g["id"]
-              and (kind_of(by, g["id"]) == "self" or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
+              and (kind_of(by, g["id"]) in SELF_KINDS or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
     # one self roster per identity (G1, as ruled): a reader's roster for an identity is the founding its LINE takes up
     # (reader_rivals: the other foundings, and every row over them, conclude nothing for that reader, so they are not
     # in P). Two foundings by one identity still in P are held by a reader whose line takes up neither (a fresh
@@ -3493,7 +3496,7 @@ def rep_of(P, k, member=False):
 
 def is_self_founding(g):
     """g is the founding record of a self roster (its founding scope read through KINDS as `self`)."""
-    return g["kind"] == "offer" and g.get("obj") == g["id"] and KINDS.get(g.get("scope")) == "self" \
+    return g["kind"] == "offer" and g.get("obj") == g["id"] and KINDS.get(g.get("scope")) in SELF_KINDS \
         and (g.get("group_kind") != "family" or "self_founding_family" in MUT)   # MUTATION: a family read as a self roster
 
 
@@ -3540,7 +3543,7 @@ def keys_counted(P, obj):
     self_roster_add, self_roster_evict) or a key object."""
     if obj is None: return False
     by = {q["id"]: q for q in P}
-    return obj not in by or kind_of(by, obj) == "self"
+    return obj not in by or kind_of(by, obj) in SELF_KINDS
 
 
 def as_persons(keys, P, obj=None):
@@ -3579,7 +3582,7 @@ def person_keys(S, person):
     P = list(S.Cs)
     by = {q["id"]: q for q in P}
     selves = [g["id"] for g in P if g["kind"] == "offer" and g.get("obj") == g["id"] and g["signer"] == person
-              and kind_of(by, g["id"]) == "self"]
+              and kind_of(by, g["id"]) in SELF_KINDS]
     cand = {person} | {k for q in P if q["kind"] == "offer" and q.get("obj") in selves for k in q.get("to", ())}
     Q = seats_of(P)
     cand |= {k for g in selves for k in Q.holders(by[g]["scope"], g)}      # a landed lone-path addition seats no offer

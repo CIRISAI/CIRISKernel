@@ -4518,9 +4518,13 @@ fn registered_agents<'r, R: SeatRow + 'r>(rows: impl IntoIterator<Item = &'r R>)
 /// [`CommunityKind::SelfRoster`].
 fn self_founding<R: SeatRow>(law: &SeatLaw, g: &R) -> bool {
     let get = |i: &R::Id| if i == g.id() { Some(g) } else { None };
-    g.seat_kind() == SeatKind::Offer
-        && founding(g)
-        && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
+    g.seat_kind() == SeatKind::Offer && founding(g) && is_self_kind(kind_of(law, &get, &Obj::Row(g.id().clone())))
+}
+
+/// A person's own rosters: a self roster, and a voice's roster of room keys (the table's kind `voice` is the self
+/// roster's door for a voice's keys), read alike by the person a key counts as.
+fn is_self_kind(k: Option<CommunityKind>) -> bool {
+    matches!(k, Some(CommunityKind::SelfRoster) | Some(CommunityKind::Voice))
 }
 
 /// The self rosters each key is live in over `rows` (a row's concluded past): for every key a live seat of a self
@@ -4558,7 +4562,7 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
             continue;
         }
         let o = Obj::Row(g.id().clone());
-        if kind_of(law, &get, &o) != Some(CommunityKind::SelfRoster) {
+        if !is_self_kind(kind_of(law, &get, &o)) {
             continue;
         }
         let Some(s) = g.scope() else { continue };
@@ -4682,7 +4686,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         let get = |i: &R::Id| by.get(i).copied();
         let keys = obj.is_some_and(|o| match o {
             Obj::Key(_) => true,
-            Obj::Row(_) => kind_of(law, &get, o) == Some(CommunityKind::SelfRoster),
+            Obj::Row(_) => is_self_kind(kind_of(law, &get, o)),
         });
         let none = Persons {
             rosters: BTreeMap::new(),
@@ -4694,7 +4698,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         let any_self = rows.iter().any(|g| {
             g.seat_kind() == SeatKind::Offer
                 && founding(g)
-                && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
+                && is_self_kind(kind_of(law, &get, &Obj::Row(g.id().clone())))
         });
         let revoked: BTreeSet<R::Key> = rows
             .iter()
