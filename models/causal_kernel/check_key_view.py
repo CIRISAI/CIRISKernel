@@ -307,7 +307,12 @@ KCO = [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), 
 KRG = lambda names: [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"),
                      KREV("rvT", "T", 3, ("kT",)), CK.row("rF", "note", "F", ("aT",)),
                      ST.unseat("uF", "F", "F", "registered", "F", "self", names)]    # F's own seat-lane revocation
+KUR = [KE.rec("kN", "N", 0, None, typ="pseudonym"), KE.att("a1", "N", 1, "kN"),
+       ST.unseat("ur", "N", "N", "registered", "N", "self", ("a1",)), KE.att("gt", "N", 2, "kN")]   # K1r
 ROSTER_DIRECT = [
+    ("r106 K1r: a key's row concurrent with its registered self-unseat (the seat lane's revocation) counts nothing",
+     [], KUR, "gt", "N", None, False),
+    ("and its row the self-unseat names counts", [], KUR, "a1", "N", None, True),
     ("own_row (iv), ruled strict: the reader's row concurrent with its own `registered` revocation is no row of its line",
      [], KRG(()), "aT", "T", "F", False),
     ("and one its honest revocation names stays in", [], KRG(("rF",)), "aT", "T", "F", True),
@@ -393,6 +398,10 @@ def combined(rows):
 KUC = lambda cos: [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
                    ST.offer("x", "Z", "F", "member", "Q", "self", ("aT",), cosigners=cos)]   # Z's offer over Q's key: no
 OWN_DIRECT = [
+    ("r106 U2: a registered self-unseat that concluded nothing is no end: the reader's concurrent row still takes up",
+     [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
+      CK.row("rF", "note", "F", ("aT",)), ST.unseat("uF", "F", "F", "registered", "F", "group", ())],
+     "aT", "T", "F", True),
     ("own_row (ii): a seat row listing the reader as a cosigner that concluded nothing is no row of its line (S5, S6)",
      KUC(("F",)), "aT", "T", "F", False),
 ]
@@ -407,7 +416,7 @@ PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("win
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
           ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("own_unconcluded_unread", KE.MUT),
-          ("own_voice_unread", KE.MUT), ("own_claimed_cosigner", KE.MUT), ("registered_by_past", KE.MUT), ("unconcluded_cosigner_counted", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("own_voice_unread", KE.MUT), ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("unconcluded_cosigner_counted", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries
@@ -430,7 +439,7 @@ def run():
         if got != want: bad.append("%s: got %s" % (name, got))
     for name, rows, rid, k, reader, want in OWN_DIRECT:
         CS = combined(rows)
-        if CS.C.get("x"): bad.append("%s: x concluded, the case reads nothing" % name)
+        if CS.C.get("x") or CS.C.get("uF"): bad.append("%s: the unconcluded row concluded" % name)
         got = KE.counts_by(CS, rid, k, reader)
         if got != want: bad.append("%s: got %s" % (name, got))
     for name, sr, kr, k, want in SUCCESSOR:
