@@ -304,7 +304,13 @@ KUN = [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), 
        KE.att("rF", "F", 2, "kT", names=("aT",))]                              # F's own row, concluding nothing
 KCO = [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
        ST.cosign("cF", "F", "x"), ST.offer("x", "Z", ("Z",), "member", "@", "self", ("cF", "aT"))]   # F a voice of x
+KRG = lambda names: [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"),
+                     KREV("rvT", "T", 3, ("kT",)), CK.row("rF", "note", "F", ("aT",)),
+                     ST.unseat("uF", "F", "F", "registered", "F", "self", names)]    # F's own seat-lane revocation
 ROSTER_DIRECT = [
+    ("own_row (iv), ruled strict: the reader's row concurrent with its own `registered` revocation is no row of its line",
+     [], KRG(()), "aT", "T", "F", False),
+    ("and one its honest revocation names stays in", [], KRG(("rF",)), "aT", "T", "F", True),
     ("own_row (iii), r101 R2: another key's note claiming the reader as a cosigner is no row of the reader's line",
      [], KR2, "aT", "T", "F", False),
     ("own_row (i): a row the reader signed takes the row up though it concluded nothing", [], KUN, "aT", "T", "F", True),
@@ -387,7 +393,7 @@ PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("win
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
           ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("own_unconcluded_unread", KE.MUT),
-          ("own_voice_unread", KE.MUT), ("own_claimed_cosigner", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("own_voice_unread", KE.MUT), ("own_claimed_cosigner", KE.MUT), ("registered_by_past", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries

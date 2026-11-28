@@ -4425,7 +4425,7 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
 /// `a` is reader `own`'s where (i) `own` signed it itself, concluded or not; or (ii) it is a CONCLUDED seat row (an
 /// offer or an unseat) of which `own` is a voice by [`voices`] (a cosigner, or the signer of a cosign row it names);
 /// (iii) never because a row claims `own` as a cosigner on any other row (r101 R2); (iv) each only where `own`'s key
-/// stands at it: no `registered` unseat of `own` by `own` in its past, and `ends_ok(a)`, the caller's reading of the
+/// stands at it: the row in the PAST of each `registered` unseat of `own` by `own`, and `ends_ok(a)`, the caller's reading of the
 /// key's own ends (a key lane's revocations, rotations and roster voids, which `key_end` reads and passes; `|_| true`
 /// where the caller holds no key lane). The reference is `checkpoint.own_row`.
 pub fn own_row<R: SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, ends_ok: &dyn Fn(usize) -> bool) -> bool {
@@ -4439,15 +4439,17 @@ pub fn own_row<R: SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, ends_ok
     if !mine {
         return false;
     }
-    let revoked = (0..g.rows().len()).any(|x| {
+    // the key-end cut over both revocation forms (ruled): the row in the PAST of each `registered` unseat of `own` by
+    // `own` (the seat lane's revocation; a row concurrent with it, or after it, is none), and `ends_ok`, the key lane's
+    let registered = (0..g.rows().len()).all(|x| {
         let xr = g.row(x);
-        xr.seat_kind() == SeatKind::Unseat
+        !(xr.seat_kind() == SeatKind::Unseat
             && xr.scope().is_some_and(|s| s.as_ref() == "registered")
             && xr.signer() == own
-            && xr.to().contains(own)
-            && g.in_past(x, a)
+            && xr.to().contains(own))
+            || g.in_past(a, x)
     });
-    !revoked && ends_ok(a)
+    registered && ends_ok(a)
 }
 
 /// THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity), MONOTONE,

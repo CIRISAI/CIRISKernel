@@ -298,9 +298,10 @@ fn before<R: KeyEndRow>(c: &Concluded<'_, R>, x: usize, e: usize, ra: Option<R::
 /// (ii) it is a CONCLUDED seat row (an offer or an unseat) of which `own` is a voice by [`crate::seat::voices`]
 ///      (a cosigner, or the signer of a cosign row it names);
 /// (iii) and never because a row claims `own` as a cosigner on any other row (a note included: r101 R2);
-/// (iv) each only where `own`'s key stands at it: no `registered` unseat of `own` by `own` in its past, and the row
-///      in the past of each of `own`'s own ends ([`ends`], the plain end rule): a row signed with the reader's key
-///      after that key's end is no row of its line (r97 K1).
+/// (iv) each only where `own`'s key stands at it, by the key-end cut over both revocation forms (ruled): the row is
+///      in the PAST of each `registered` unseat of `own` by `own` and of each of `own`'s key-lane ends ([`ends`]:
+///      revocations, rotations, roster voids; the plain end rule). A row concurrent with the key's end, or after it,
+///      is no row of its line (r97 K1); an honest revocation names its last honest rows, so they stay in.
 /// Limb (b) reads these rows per row against each end, with no ordering; any order rule is the person lane's, on
 /// top. The body is [`crate::seat::own_row`]; this lane reads the key's own ends for it. The reference is
 /// `key_end.own_row`.
