@@ -208,6 +208,7 @@ fn law() -> SeatLaw {
 /// A counted admission of `k` to `scope` over the room (row 0) at `head`, signed by `by` and `signers`: under the
 /// room's declared protocol, or under `community_invite`. `joins`: `k` signs it too (its own yes); otherwise its
 /// own acceptance completes the seat.
+#[allow(clippy::too_many_arguments)]
 fn admission(id: u32, k: u32, scope: &str, by: u32, signers: &[u32], head: u32, joins: bool, protocol: bool) -> S {
     let mut o = S::new(id, vec![head], by, SeatKind::Offer);
     o.to = vec![k];
