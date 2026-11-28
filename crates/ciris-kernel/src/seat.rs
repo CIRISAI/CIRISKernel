@@ -4865,11 +4865,14 @@ pub fn seat_lane_ends_ok<'c, R: SeatRow>(c: &'c Concluded<'_, R>, own: &R::Key) 
 /// Row `q` is key `k`'s revocation in the seat lane: an unseat of `k`'s `registered` seat over `k`, by `k` itself.
 /// `checkpoint.registered_self_unseat`.
 pub fn registered_self_unseat<R: SeatRow>(q: &R, k: &R::Key) -> bool {
+    // its LONE act (CC 2.4.1.1): an unseat of the key's registered seat counted by a group is no revocation of the
+    // key, concluded or not; the one definition (registered_ends, the TR2 rotation rule, closing_voids)
     q.seat_kind() == SeatKind::Unseat
         && q.scope().is_some_and(|s| s.as_ref() == "registered")
         && q.obj() == Some(Obj::Key(k.clone()))
         && q.to().contains(k)
         && q.signer() == k
+        && q.conf() != Some(Conf::Group)
 }
 
 /// Key `k`'s seat-lane revocations: each CONCLUDED [`registered_self_unseat`] of `k` (one that concluded nothing ends
@@ -4877,13 +4880,7 @@ pub fn registered_self_unseat<R: SeatRow>(q: &R, k: &R::Key) -> bool {
 /// [`crate::key_end::revocation_stands`]: ordered against `k`'s rotations, r110 RK2, r114). The half of
 /// [`crate::key_end::key_ends`] the seat lane reads. `checkpoint.registered_ends`.
 pub fn registered_ends<R: SeatRow>(c: &Concluded<'_, R>, k: &R::Key, keep: &dyn Fn(usize) -> bool) -> Vec<usize> {
-    // the key's OWN revocation is its lone act (CC 2.4.1.1): an unseat of its registered seat counted by a group is no
-    // revocation of the key, concluded or not (the K2 class: a key-only Concluded holds every seat row)
-    c.cs()
-        .iter()
-        .copied()
-        .filter(|&e| registered_self_unseat(c.g.row(e), k) && c.g.row(e).conf() != Some(Conf::Group) && keep(e))
-        .collect()
+    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k) && keep(e)).collect()
 }
 
 /// THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity), MONOTONE,

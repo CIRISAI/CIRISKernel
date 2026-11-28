@@ -90,10 +90,12 @@ def acknowledgements(S, own, obj, rows=None):
 
 
 def registered_self_unseat(q, k):
-    """Row q is key k's revocation in the seat lane: an unseat of k's `registered` seat over k, by k itself (the
-    crate's seat::registered_self_unseat)."""
+    """Row q is key k's revocation in the seat lane: an unseat of k's `registered` seat over k, by k itself, as its
+    LONE act (CC 2.4.1.1: only the key's own revocation; one counted by a group is no revocation of the key, concluded
+    or not; MUTATION registered_count_ends). The one definition: registered_ends, the TR2 rotation rule, closing_voids
+    and the person map read it (the crate's seat::registered_self_unseat)."""
     return (q["kind"] == "unseat" and q.get("scope") == "registered" and q.get("obj") == k and k in q.get("to", ())
-            and q["signer"] == k)
+            and q["signer"] == k and (q.get("conf") != "group" or "registered_count_ends" in MUT))
 
 
 def registered_ends(S, k, mut=None, keep=None):
@@ -105,11 +107,7 @@ def registered_ends(S, k, mut=None, keep=None):
     mut = MUT if mut is None else mut
     if "registered_end_unread" in mut: return []
     rows = S.rows if "registered_unconcluded_counted" in mut else S.Cs
-    # the key's OWN revocation is its lone act (CC 2.4.1.1): an unseat of its registered seat counted by a group is no
-    # revocation of the key, concluded or not (the K2 class: a key-only state holds every seat row; MUTATION
-    # registered_count_ends)
     return [q for q in rows if registered_self_unseat(q, k)
-            and (q.get("conf") != "group" or "registered_count_ends" in mut)
             and (keep is None or "retired_registered_ends" in mut or keep(q))]
 
 
