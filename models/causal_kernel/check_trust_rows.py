@@ -65,6 +65,8 @@ Planted breaks, each of which must change a case's answer:
     (retired: built_on_cut_kept, a row built on a cut row kept. The seat model voids what rests on a cut row itself:
     a counted act counts only if the counted acts among its heads count, and a regrown lone conferral seats nothing;
     the lane's own built-on cut, wider than that, is gone)
+    growth_ends_read         (a), (d) an end read as growth: the re-count, not the end rule, decides a cut (r81 E3)
+    counted_recount_unread   (a) a counted seat conferral from an old past not re-counted against held growth (r95)
     still_holds_end_past     (d) whether the key still holds a standing is read over the end's past, not the judged rows
     growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
                              re-counted over the grown body
@@ -703,7 +705,7 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
-          "one_end_at_a_time",
+          "one_end_at_a_time", "growth_ends_read", "counted_recount_unread",
           "end_cuts_counted_row", "own_licence_uncountersigned")
 
 
