@@ -14,6 +14,14 @@ Sources read:
   `roster-merge` `23b26c1`, `audience` `3a37cd2`, `charter` `48b44ad` (which contains `persist-gaps` `9e791b3`),
   `key-person` `70af5e8`, `room-key-vectors` `d991aa5` (fixture only), `key-end-retained` `44c697c`. The tables
   below are the union.
+- The field lists the models and modules already state, checked against the tables below: `models/trust_root/root.py`
+  (a bundle's holders, seats, charter, version, family, recovery, and `prev` as `refs.prev` then `refs.further_prev`
+  for a join), `models/causal_kernel/key_end.py` (a record; a rotation's `succ_of`, both signatures and `at_old`; a
+  revocation's `revoked_after`; a statement), `trust_rows.py` (an edge's `trust:accepts:v1`, destination,
+  `trust_classes`, `trust_depth`, `on_behalf`; a licence's authority and class), `audience.rs`'s module doc (family,
+  cohort scope, `history_on_join`, named keys), `window.rs` (`window:held`, `window:landed`) and `head::Entry`.
+  ADOPTING.md's "Presenting rows" section gives the rules for presenting rows as prose; this note is the map by
+  field.
 
 Markers used below:
 
@@ -43,6 +51,18 @@ A row is one `COSE_Sign1` statement, or several over one payload (CC 2.6.1.1, 2.
 | row type | protected label -70001 | One of `scores`, `delegates_to`, `supersedes`, `withdraws`, `recants`. Feeds the kind (section 6). |
 | family id | protected label -70002 | The family's registry prefix with each `{name}` written `.name` and each `*` written `.`: `membership:.stage`, `key:record`, `trust:.job:.version`. A `withdraws` or `recants` carries its target's family id, no `dimension`, and its target's `sub`. |
 | payload | the `bstr .cbor attestation-envelope` | Every member below. |
+
+**The key type.** `Row::Key` (and the `Key` of every view) is a key id. On the wire every party is named by
+one spelling, the identity reference: `urn:ietf:params:oauth:ckt:sha-256:` followed by the unpadded base64url
+(43 characters) of the key's 32-byte RFC 9679 thumbprint (CC 2.6.1.1). That text is the crate's key id:
+`iss`, `author`, a key `sub`, `subject_key_ids`, `member`, `members[].key`, `holders[]`, `serve_nodes[]` and every
+role party carry it as written. `kid` (protected label 4) is the same thumbprint as bare bytes: a store turns
+it into an identity reference before presenting it. A dimension segment naming a key carries the bare
+base64url thumbprint, the reference less its prefix. A store that keeps the 32 bytes as its key id instead does
+so for every field alike; the crate compares keys only by equality and order.
+
+**The suite.** The crate holds no suite and verifies nothing: signature verification, the composite algorithm
+(`alg` -70100) and its halves are the caller's and Verify's. No view reads `alg`.
 
 **The three ids.** Verify against this before anything else: it is the main trap.
 
