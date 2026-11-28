@@ -133,6 +133,10 @@ CASES = [
      "held to named_within",
      [row("v", "ballot:moderator_acceptance", "community", room="r1", named=["j"], kind="offer", obj="r9", to=["j"])],
      {"v": REF("named_outside_audience")}),
+    ("seats_not_person_level", "an identity:occurrence row shaped as an offer over r1 to z: a person-level row "
+     "seats no key into a room's audience, so z is held to named_within (review r83, case o)",
+     [row("o", "identity:occurrence", "community", room="r1", named=["z"], kind="offer", obj="r1", to=["z"])],
+     {"o": REF("named_outside_audience")}),
     ("seats_only_a_seat_family", "a chat row shaped as an offer over its room names j in `to`: chat is no seat "
      "family, so j is held to named_within and the row is refused (review r82, 5d)",
      [row("v", "chat:general", "community", room="r1", named=["j"], kind="offer", obj="r1", to=["j"])],
@@ -279,6 +283,7 @@ PLANTS = [(("undecided_defaulted",), "undecided_family"), (("pinned_unread",), "
           (("match_first",), "table"), (("seats_not_within",), "admission_names_joiner"),
           (("seats_any_obj",), "seats_derived_not_stated"),
           (("seats_any_family",), "seats_only_a_seat_family"),
+          (("seats_person_level",), "seats_not_person_level"),
           (("named_within_current",), "named_at_own_head"),
           (("history_unread",), "history"), (("word_read",), "history"),
           (("tie_first",), "ties")]
@@ -338,8 +343,7 @@ def check_derivation():
         problems.append("derivation: the tie check")
     if AU.KEY_GRANT not in AU.FAMILIES:
         problems.append("derivation: the key grant family %s is not in the table" % AU.KEY_GRANT)
-    if AU.SEAT_FAMILIES != {"ballot:moderator_acceptance", "group:roster", "identity:occurrence",
-                            "identity:occurrence_revocation", "membership:{stage}", "self:delegates_to"}:
+    if AU.SEAT_FAMILIES != {"ballot:moderator_acceptance", "group:roster", "membership:{stage}"}:
         problems.append("derivation: the seat families are %s" % sorted(AU.SEAT_FAMILIES))
     if FP.ties(list(AU.FAMILIES)):
         problems.append("derivation: the pinned table ties: %s" % FP.ties(list(AU.FAMILIES))[:3])

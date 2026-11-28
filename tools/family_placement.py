@@ -123,15 +123,16 @@ def ties(patterns):
 
 
 def seat_family(row):
-    """A family whose rows seat or end a seat conferred by a body (a room's roster, or a person's own key roster):
-    its confers cell is a seat or an ending binding the body and the holder, or a selector that seats by the body's
-    count. Only a seat offer or unseat of such a family seats keys within its audience (audience.seats_of)."""
+    """A ROOM seat family: its rows seat or end a seat a room's body confers (its confers cell is a seat or an
+    ending binding the body and the holder, over a room's roster, not the person's own key roster). Only a seat
+    offer or unseat of such a family seats keys within a room row's audience (audience.seats_of). The person-level
+    families (identity:occurrence and its revocation, roster `self`; self:delegates_to, a selector) never do."""
     c = row.get("confers")
     v = c.get("value") if isinstance(c, dict) else c
-    if isinstance(v, dict):
-        rel = str(v.get("relation", "")).split("|")
-        return ("seat" in rel or "ending" in rel) and "body" in str(v.get("binds", ""))
-    return isinstance(v, str) and "seat (the body's count" in v
+    if not isinstance(v, dict):
+        return False
+    rel = str(v.get("relation", "")).split("|")
+    return ("seat" in rel or "ending" in rel) and "body" in str(v.get("binds", "")) and v.get("roster") != "self"
 
 
 def placement_of(row):
@@ -210,8 +211,8 @@ def rust(table):
             ps = ", ".join("Placement::" + RUST_NAME[p] for p in f["allowed"])
             out.append("    (%s, FamilyPlacement::Allowed(&[%s]))," % (json.dumps(f["family"]), ps))
     out.append("];")
-    out += ["", "/// The families whose seat offers and unseats seat or remove keys over a body (a room's roster, or a person's",
-            "/// own key roster): the only ones whose `to` is within a row's audience ([`super::seats_of`]).",
+    out += ["", "/// The ROOM seat families: the only ones whose seat offers and unseats over a room put their `to` within the",
+            "/// row's audience ([`super::seats_of`]). Person-level families (a person's own key roster) never do.",
             "pub const SEAT_FAMILIES: &[&str] = &["]
     out += ["    %s," % json.dumps(f["family"]) for f in table["families"] if f.get("seat")]
     out.append("];")

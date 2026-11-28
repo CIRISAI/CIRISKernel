@@ -588,13 +588,23 @@ plant "the walk passes through a cut row"               src/content.rs '|| self.
 plant "a key removal voids the member's end"         src/content.rs '            if line.contains(e.id()) {' '            if self.cuts.any.contains(e.id()) || line.contains(e.id()) {'
 plant "the room's count removes a key"                 src/content.rs '(seat.member)(q.signer()) && (q.removes() == Some(q.signer()) || q.concludes())' '((seat.member)(q.signer()) || (seat.counted)(q.signer())) && (q.removes() == Some(q.signer()) || q.concludes() || (seat.counted)(q.signer()))'
 plant "an unconcluded eviction is read"               src/content.rs '&& (q.removes() == Some(q.signer()) || q.concludes())' '&& true'
-plant "a row the reader took up is cut"               src/content.rs '            if taken {
-                continue;
-            }' '            if false && taken {
-                continue;
+plant "a row the reader took up is cut"               src/content.rs '            if !taken {' '            if true || !taken {'
+plant "the content anchor back (review r83)"           src/content.rs '            if !taken {
+                out.any.insert(r.id().clone());
+            }' '            let built = r.kind() == Kind::Content
+                && any3(
+                    rows.iter().copied().filter(|b| {
+                        b.kind() == Kind::Content && !(seat.member)(b.signer()) && b.room() == r.room()
+                    }),
+                    |b| Ok(past.in_past(r.id(), b.id())? && !past.in_past(q.id(), b.id())?),
+                )?;
+            if !taken && !built {
+                out.any.insert(r.id().clone());
             }'
-plant "a row another member built on is cut"         src/content.rs '            if !built {' '            if true || !built {'
-plant "a reply after the removal anchors"             src/content.rs '&& !past.in_past(q.id(), b.id())?)' ')'
+plant "a person-level seat row seats a room"           src/audience.rs 'pub fn seats_of<R: AudienceRow>(r: &R) -> &[R::Key] {
+    let seat_family = family_of(r.family()).is_some_and(|f| SEAT_FAMILIES.contains(&f.0));' 'pub fn seats_of<R: AudienceRow>(r: &R) -> &[R::Key] {
+    let seat_family = family_of(r.family())
+        .is_some_and(|f| SEAT_FAMILIES.contains(&f.0) || f.0 == "identity:occurrence" || f.0 == "self:delegates_to");'
 plant "a retraction a key removal cuts is read"         src/content.rs '.filter(|w| !cuts.any.contains(w.id()))' ''
 plant "the rooms read as one"                           src/content.rs 'by_room.entry(r.room()).or_default().push(r);' 'by_room.entry(None).or_default().push(r);'
 plant "an undecided family takes the default"           src/audience.rs 'FamilyPlacement::Undecided => return Placed::Undecided(fam),' 'FamilyPlacement::Undecided => &[Placement::SelfCollective, Placement::TargetedFamily, Placement::TargetedRoom, Placement::Commons][..],'

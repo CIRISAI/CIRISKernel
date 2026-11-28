@@ -283,16 +283,6 @@ fn no_end_among_the_rows() {
                                 && in_past(&by, None, &r.id, &a.id).expect("held")
                                 && !in_past(&by, None, &q.id, &a.id).expect("held")
                         })
-                        // a content row a co-member's content row of its room built on before the removal stands
-                        && !(r.kind == Kind::Content
-                            && list.iter().any(|b| {
-                                b.kind == Kind::Content
-                                    && !member(b.signer.as_str())
-                                    && b.signer != "count"
-                                    && b.room == r.room
-                                    && in_past(&by, None, &r.id, &b.id).expect("held")
-                                    && !in_past(&by, None, &q.id, &b.id).expect("held")
-                            }))
                 })
         };
         for (x, a) in run(&list, None) {

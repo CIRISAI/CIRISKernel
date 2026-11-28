@@ -1212,7 +1212,7 @@
     "addressed"
    ],
    "undecided": null,
-   "seat": true
+   "seat": false
   },
   {
    "family": "identity:occurrence_revocation",
@@ -1224,7 +1224,7 @@
     "addressed"
    ],
    "undecided": null,
-   "seat": true
+   "seat": false
   },
   {
    "family": "identity_amendment",
@@ -1825,7 +1825,7 @@
     "commons"
    ],
    "undecided": null,
-   "seat": true
+   "seat": false
   },
   {
    "family": "self:delegates_to:agent_occurrence",

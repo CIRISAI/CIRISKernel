@@ -18,13 +18,16 @@
   current roster is read only for who is owed.
 - The keys a seat row seats or removes are derived (`audience::seats_of`: an offer or unseat whose `obj` is its
   room, its `to`). **BREAKING**: `AudienceRow::seats` is gone; `seat_act`, `obj` and `to` replace it.
-- Review r82: only a seat family's offer or unseat seats keys within its audience (`audience::SEAT_FAMILIES`,
-  derived by the generator from the confers cells); the key grant exclusion reads the resolved family
+- Review r82, r83: only a ROOM seat family's offer or unseat seats keys within its audience
+  (`audience::SEAT_FAMILIES`: group:roster, membership, ballot:moderator_acceptance, derived by the generator from the
+  confers cells; the person-level families never do); the key grant exclusion reads the resolved family
   (`audience::KEY_GRANT`); `person` is the person's current, concluded key roster (a contract, stated).
-- A key's own revocation that names nothing (the Constitution's ruling of review r82): the end rule stands, and
-  for content only a revoked key's row also stands where a co-member's content row of the same room was built on it
-  before that row held the revocation (`content`; no count reads content answers). Residual: a thief can take out
-  the rows nobody built on and the reader had not taken up.
+- A key's own revocation that names nothing (the Constitution's ruling of review r82): the end rule stands, with
+  the caller duty (an honest revocation names the key's last trusted rows) and the residual (a thief can revoke
+  naming nothing and take the key's unnamed rows out for readers that had not taken them up). The only anchor is the
+  reader's own taken-up line. A content anchor by another key's reply was built and removed after review r83: it
+  cannot be told from a reply signed after the revocation, so one colluding or sock key revived every forged row,
+  a forged retraction included; its cases stay as regression cases (`anchor_*`), and a plant re-enables it.
 - An unknown `history_on_join` word is absent and falls through (the door refuses it), in `history_of`.
 - Family patterns that tie on a name refuse (`Refusal::FamilyAmbiguous`, `audience::family_in`); the generator
   refuses to write a table with a tie.

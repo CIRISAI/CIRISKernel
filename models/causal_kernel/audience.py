@@ -143,13 +143,17 @@ def history_of(row, joins):
 
 def seats_of(row):
     """The keys a seat offer or unseat over the row's own room seats or removes (its `to`), derived from the row:
-    no caller states them. Only a row of a SEAT FAMILY (one whose seats a body confers: group:roster, membership,
-    the moderator's acceptance, the person's key roster's rows, a delegation by the body's count) seats anyone: a
-    chat row cannot use `to` to pass named_within. Empty on every other row. MUTATIONS seats_any_obj: a seat row
-    over another object too; seats_any_family: a row of any family."""
+    no caller states them. Only a row of a ROOM SEAT FAMILY (one whose seats a room's body confers: group:roster,
+    membership, the moderator's acceptance) seats anyone: a chat row cannot use `to` to pass named_within, and a
+    person-level row (identity:occurrence, self:delegates_to) never seats keys into a room's audience. Empty on
+    every other row. MUTATIONS seats_any_obj: a seat row over another object too; seats_any_family: a row of any
+    family; seats_person_level: the person-level families too."""
     if row.get("kind") not in ("offer", "unseat"):
         return frozenset()
-    if family_of(row["family"]) not in SEAT_FAMILIES and "seats_any_family" not in MUT:
+    fam = family_of(row["family"])
+    person_level = ("identity:occurrence", "identity:occurrence_revocation", "self:delegates_to")
+    if fam not in SEAT_FAMILIES and "seats_any_family" not in MUT and not (
+            "seats_person_level" in MUT and fam in person_level):
         return frozenset()
     if row.get("obj") != row.get("room") and "seats_any_obj" not in MUT:
         return frozenset()

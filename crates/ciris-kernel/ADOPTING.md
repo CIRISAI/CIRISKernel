@@ -56,9 +56,9 @@ migrations, and the local operational store.
 holds it, so place it at commons, or in every room the key sits in; give `ContentRow::concludes` from the
 self-roster count of the person's own key roster. A key's own revocation keeps the end rule, with no instant bound: an honest revocation names the
 key's last trusted rows, and what it names stands. The residual, stated: a thief holding a key can revoke it naming
-nothing and take its unnamed rows out for readers that had not taken them up; rows the reader acknowledged stand for
-it, and (content only, `content::answers`) so do rows a co-member's content row of the room built on before it held
-the revocation. No count reads content answers, so a removed key's vote that a friendly member cites stays cut.
+nothing and take its unnamed rows out for every reader that had not taken them up; rows the reader acknowledged
+stand for it, and nothing else anchors a row: another key's reply or cite cannot be told from one signed after the
+revocation that leaves it unnamed (review r83), so it keeps nothing.
 Give `audience`'s `person(key)` as the person's current, concluded key roster (the key-person lane's
 `seat::Persons`, once merged): an evicted or revoked key leaves the person, and its rows carry none of the
 person's self or addressed rows. Decode `history_on_join` with `audience::History::from_word`: a
