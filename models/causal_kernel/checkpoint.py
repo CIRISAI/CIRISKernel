@@ -96,17 +96,17 @@ def registered_self_unseat(q, k):
             and q["signer"] == k)
 
 
-def registered_ends(S, k, mut=None, rotated=False):
+def registered_ends(S, k, mut=None, keep=None):
     """Key k's seat-lane revocations: each CONCLUDED registered self-unseat of k (one that concluded nothing ends
-    nothing, r106 U2), and NONE where `rotated` (a concluded rotation of k is held: a retired key's revocation is no
-    end, whoever signed it, r110 RK2, as key_end.ends_of reads the key lane's). The half of key_end.key_ends the seat
-    lane reads (the crate's seat::registered_ends). MUTATIONS registered_end_unread (none read),
-    registered_unconcluded_counted (an unconcluded one read), retired_registered_ends (read though rotated)."""
+    nothing, r106 U2), each where `keep` takes it (key_end.key_ends passes revocation_stands: ordered against k's
+    rotations, r110 RK2, r114; none: every one). The half of key_end.key_ends the seat lane reads (the crate's
+    seat::registered_ends). MUTATIONS registered_end_unread (none read), registered_unconcluded_counted (an
+    unconcluded one read), retired_registered_ends (`keep` unread)."""
     mut = MUT if mut is None else mut
     if "registered_end_unread" in mut: return []
-    if rotated and "retired_registered_ends" not in mut: return []
     rows = S.rows if "registered_unconcluded_counted" in mut else S.Cs
-    return [q for q in rows if registered_self_unseat(q, k)]
+    return [q for q in rows if registered_self_unseat(q, k)
+            and (keep is None or "retired_registered_ends" in mut or keep(q))]
 
 
 def own_row(S, a, own, ends_ok=None, voices=None, mut=None):

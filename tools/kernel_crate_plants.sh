@@ -292,7 +292,7 @@ plant "at tips a duty seat does not follow the folded roster" src/seat.rs '!self
 plant "the founding seat is no member seat" src/seat.rs 'let own = (o.obj() == Some(Obj::Row(o.id().clone())) && o.scope().map(|x| x.as_ref()) == Some(s)) || roster;' 'let own = roster;'
 plant "every seat over a community asks for membership" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty(sc, &declared(by, &obj))' 'community(by, &obj) && !founding(o) && !roster'
 plant "the duty-seat rule reaches duty rooms only" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty' 'duty_room(by, &obj) && !founding(o) && !roster && law.is_duty'
-plant "a duty count counts a holder whose resignation is in its past" src/seat.rs 'if !mem.is_empty() && (law.is_duty(counted, &duties) || role) {' 'if false {'
+plant "a duty count counts a holder whose resignation is in its past" src/seat.rs 'if law.is_duty(scope, &duties) || role {' 'if false {'
 # retired at the heads merge: "a family founder's role survives its leaving" (H1 / the heads' reading of a leaving pre-empt it)
 plant "a holder admitted again stays out of the duty count" src/seat.rs 'if !seated_after(p, obj, k, w.id(), |m| roster_offer(law, m)) {' 'if true {'
 plant "a founding record's duty holders unread" src/seat.rs '    if o.duty_holders().is_empty() {
@@ -910,7 +910,6 @@ plant "election: the key view not read for ballots (ballot_key_view_unread)" src
 plant "seat: a lift objection not read by the key view (lift_key_view_unread)" src/seat.rs '&& spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()))' '&& spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()) || true)'
 plant "seat: a lone removal's single-key receipt not read by the key view (receipt_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer()) && false) {'
 plant "seat: a lone act not read by the key view (lone_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer()) && false) {'
-plant "key_end: a retired key's revocation an end (retired_key_revokes)" src/key_end.rs 'if rk == k && q.signer() == k && rots.is_empty() {' 'if rk == k && q.signer() == k {'
 plant "key_end: a reader's own row after its key's end on its line (reader_line_unchecked)" src/key_end.rs '    crate::seat::own_row(c, a, own, &|a| es.iter().all(|&(e, ra)| before(c, a, e, ra)))' '    crate::seat::own_row(c, a, own, &|_| es.is_empty() || true)'
 plant "key_end: own_row reads only concluded rows the reader signed (own_unconcluded_unread)" src/seat.rs '    let mine = r.signer() == own;' '    let mine = r.signer() == own && c.concluded(a);'
 # folded into the one own_row (seat::own_row): key_end: own_row reads no voice of a concluded seat row (own_voice_unread), as the r101 plants on it
@@ -920,13 +919,18 @@ plant "key_end: a revoked key's rotation concludes (revoked_key_rotates, r114 TR
                     && prev' '                true
                     && prev'
 plant "key_end: a rotation over its key's registered self-unseat concludes (r114 TR2, the seat lane's form)" src/key_end.rs 'if p.ancestors().iter().any(|&i| crate::seat::registered_self_unseat(g.row(i), old)) {' 'if false && p.ancestors().iter().any(|&i| crate::seat::registered_self_unseat(g.row(i), old)) {'
-plant "seat: a retired key's registered self-unseat an end (retired_registered_ends, r110 RK2)" src/seat.rs '    if rotated {
-        return Vec::new();
-    }' '    if rotated && false {
-        return Vec::new();
+plant "key_end: a revocation with the rotation in its past an end (retired_key_revokes, r114)" src/key_end.rs '    if rots.iter().any(|&x| c.g.in_past(x, e)) {
+        return false;
+    }' '    if false {
+        return false;
     }'
-plant "seat: the seat-lane revocation no end of the key (registered_end_unread)" src/seat.rs '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k)).collect()' '    c.cs().iter().copied().filter(|&e| false && registered_self_unseat(c.g.row(e), k)).collect()'
-plant "seat: an unconcluded registered self-unseat an end (registered_unconcluded_counted)" src/seat.rs '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k)).collect()' '    (0..c.g.len()).filter(|&e| registered_self_unseat(c.g.row(e), k)).collect()'
+plant "key_end: the roster's choice of the rotation in a fork unread (revocation_void_unread, r114)" src/key_end.rs '    !(fork
+        && roster' '    !(false
+        && roster'
+plant "key_end: a fork names a successor (fork_successor, r114)" src/key_end.rs '    if !rots.is_empty() && ends(c, k, roster).iter().any(|&(e, _)| c.g.row(e).revocation().is_some()) {' '    if false && !rots.is_empty() {'
+plant "seat: registered_ends reads no order against the rotations (retired_registered_ends, r110 RK2)" src/seat.rs '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k) && keep(e)).collect()' '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k)).collect()'
+plant "seat: the seat-lane revocation no end of the key (registered_end_unread)" src/seat.rs '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k) && keep(e)).collect()' '    c.cs().iter().copied().filter(|&e| false && keep(e)).collect()'
+plant "seat: an unconcluded registered self-unseat an end (registered_unconcluded_counted)" src/seat.rs '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k) && keep(e)).collect()' '    (0..c.g.len()).filter(|&e| registered_self_unseat(c.g.row(e), k) && keep(e)).collect()'
 plant "seat: the person map reads no key-lane revocation (person_key_lane_unread)" src/seat.rs '            revoked.extend(ks.into_iter().filter(|k| kv.revoked(k, &ids)));' '            let _ = (ks, ids, kv);'
 plant "key_end: a voided rotation names a successor (successor_roster_unread)" src/key_end.rs '        .filter(|&i| !voided(c, i, roster))' '        .filter(|&i| !voided(c, i, roster) || true)'
 plant "key_end: the reader's taken-up line unread (taken_up_unread)" src/key_end.rs '|| own.iter().any(|&a| (a == i || c.g.in_past(i, a)) && !c.g.in_past(e, a))' '|| own.is_empty() && false'

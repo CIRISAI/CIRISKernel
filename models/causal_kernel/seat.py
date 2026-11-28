@@ -4197,7 +4197,12 @@ def self_roster_ends(S):
         # it removes k itself from k's own self roster; or k is the rotated-to key of a rotation it cites (refs.also.
         # cites) whose old key holds a seat of that roster (the roster's void of the rotation, T3)
         cited = [by[n] for n in e["names"] if n in by and by[n]["kind"] == "rec" and by[n].get("succ_of") and by[n]["key"] == k]
+        # or it names k's own revocation (the fork of a rotation and a revocation, r114: the roster's act naming the
+        # revocation it voids), k holding a seat of that roster in the eviction's past with that revocation set aside
+        revs = [by[n] for n in e["names"] if n in by and by[n]["signer"] == k
+                and (by[n]["kind"] == "revoke" and by[n].get("key") == k or CP.registered_self_unseat(by[n], k))]
         if g["id"] in rosters_of(P, k) or any(g["id"] in rosters_of(P, q["succ_of"]) for q in cited) \
+                or any(g["id"] in rosters_of([q for q in P if q["id"] != v["id"]], k) for v in revs) \
                 or "roster_end_any_object" in MUT:
             out.add(e["id"])
     return frozenset(out)

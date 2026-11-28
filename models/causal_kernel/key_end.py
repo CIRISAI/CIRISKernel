@@ -196,6 +196,12 @@ def successor(S, k, ret=None, roster=frozenset()):
             and not voided(S, r, roster)]
     if not rots:
         return None
+    # a fork of a rotation and a revocation the self roster has not settled names no successor (r114; MUTATION
+    # fork_successor: the rotation's key named)
+    import checkpoint as _CP
+    if "fork_successor" not in MUT and any(e["kind"] == "revoke" or _CP.registered_self_unseat(e, k)
+                                           for e in key_ends(S, k, roster)):
+        return None
     keys = sorted({r["key"] for r in CK.frontier(S, rots)})
     if "rank_successor" in MUT:
         return keys[0]                    # PLANT: the lower key id wins
@@ -216,9 +222,15 @@ def voided(S, rot, roster=frozenset()):
 
 def ends_of(S, k, roster=frozenset()):
     """Key k's ends, as rows (its LIVENESS: G33, only the key's own acts end it):
-        its self-revocations, but NONE where a concluded rotation of k is held at all (a retired key's revocation is
-            no end, whoever signed it and whatever its past holds; MUTATION retired_key_revokes: only one with a
-            rotation in its own past is none);
+        its self-revocations, ordered against its rotations by the one rule (the Constitution's ruling on r114):
+            whichever of a rotation and a revocation has the other in its past loses to it. A revocation with an
+            unvoided rotation of k in its past is no end (a retired key's); a rotation with k's revocation in its past
+            concludes nothing (RULE). A revocation CONCURRENT with a rotation is a FORK on the key, as two rotations
+            are: both are ends of k, no successor stands, and the self roster settles it as it does two rival
+            rotations, its act naming the one it voids (a rotation: voided; a revocation: its counted eviction of k
+            citing it, read only in the fork; revocation_stands). MUTATIONS retired_key_revokes (none where any
+            rotation is held, the reading before the ruling), revocation_void_unread (the roster's choice of the
+            rotation unread);
         every concluded rotation of k not voided by the person's self roster (voided; a rotated holder speaks under
             its new key). Two rotations of one key are a FORK of the key: both are ends of the old key, and neither
             successor stands until the self roster's count settles which (voids one).
@@ -229,11 +241,8 @@ def ends_of(S, k, roster=frozenset()):
     The residual, stated: a person with ONE key (a self roster of one), whose key is stolen, cannot be told from the
     thief: the thief can rotate or revoke it as the owner could, and no roster can void a rotation."""
     rots = [r for r in S.Cs if r["kind"] == "rec" and r["succ_of"] == k and not voided(S, r, roster)]
-    if "retired_key_revokes" in MUT:
-        revs = [r for r in S.Cs if r["kind"] == "revoke" and r["key"] == k and r["signer"] == k
-                and not any(x["id"] in S.anc[r["id"]] for x in rots)]
-    else:
-        revs = [] if rots else [r for r in S.Cs if r["kind"] == "revoke" and r["key"] == k and r["signer"] == k]
+    revs = [r for r in S.Cs if r["kind"] == "revoke" and r["key"] == k and r["signer"] == k
+            and revocation_stands(S, r, k, rots, roster)]
     # a voided rotation's rotated-to key: the roster's voiding act ends it, by the cut rule like any ended key's (what
     # a reader took up and what is final stand; MUTATION voided_successor_kept)
     voids = [] if "voided_successor_kept" in MUT else [
@@ -241,6 +250,18 @@ def ends_of(S, k, roster=frozenset()):
         and any(n in S.by and S.by[n]["kind"] == "rec" and S.by[n].get("succ_of") is not None and S.by[n]["key"] == k
                 for n in S.by[e]["names"])]
     return revs + rots + voids
+
+
+def revocation_stands(S, rv, k, rots, roster=frozenset()):
+    """Whether revocation rv of key k (either form) is an end of k against k's unvoided rotations `rots` (the one rule,
+    ruled on r114): not where a rotation is in its past (the key was retired first); in a FORK (a rotation concurrent
+    with it) it stands until the self roster names it: a counted eviction of k (an id of `roster`) citing rv voids it,
+    and the rotation stands. The crate's key_end::revocation_stands."""
+    if "retired_key_revokes" in MUT: return not rots
+    if any(x["id"] in S.anc[rv["id"]] for x in rots): return False
+    fork = any(rv["id"] not in S.anc[x["id"]] for x in rots)
+    return not (fork and "revocation_void_unread" not in MUT and any(
+        e in S.by and tuple(S.by[e].get("to", ())) == (k,) and rv["id"] in S.by[e]["names"] for e in roster))
 
 
 def _before(S, rid, e):
@@ -296,9 +317,10 @@ def key_ends(S, k, roster=frozenset()):
     unread), registered_unconcluded_counted (an unconcluded one ends the key)."""
     out = list(ends_of(S, k, roster))
     import checkpoint as _CP
-    # a retired key's seat-lane revocation is no end (r110 RK2): none where a concluded rotation of k is held
-    rotated = any(e["kind"] == "rec" and e.get("succ_of") == k for e in out)
-    return out + [q for q in _CP.registered_ends(S, k, MUT, rotated) if q not in out]
+    # the seat lane's revocation ordered against k's rotations by the same rule (r110 RK2, r114): revocation_stands
+    rots = [e for e in out if e["kind"] == "rec" and e.get("succ_of") == k]
+    keep = lambda q: revocation_stands(S, q, k, rots, roster)
+    return out + [q for q in _CP.registered_ends(S, k, MUT, keep) if q not in out]
 
 
 def revocations(S, k, roster=frozenset()):

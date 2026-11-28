@@ -4492,7 +4492,7 @@ pub fn own_row<R: SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, ends_ok
 /// with one, or after it, is none). For a caller that holds no key view; it cannot see a rotation, so a retired key's
 /// self-unseat is read as an end here (a reader with no key lane holds no K1 either). `checkpoint.seat_lane_ends_ok`.
 pub fn seat_lane_ends_ok<'c, R: SeatRow>(c: &'c Concluded<'_, R>, own: &R::Key) -> impl Fn(usize) -> bool + 'c {
-    let rs = registered_ends(c, own, false);
+    let rs = registered_ends(c, own, &|_| true);
     move |a| rs.iter().all(|&x| c.g.in_past(a, x))
 }
 
@@ -4507,14 +4507,11 @@ pub fn registered_self_unseat<R: SeatRow>(q: &R, k: &R::Key) -> bool {
 }
 
 /// Key `k`'s seat-lane revocations: each CONCLUDED [`registered_self_unseat`] of `k` (one that concluded nothing ends
-/// nothing, r106 U2), and NONE where `rotated` (a concluded rotation of `k` is held: a retired key's revocation is no
-/// end, whoever signed it, r110 RK2, as [`crate::key_end::ends`] reads the key lane's). The half of
+/// nothing, r106 U2), each where `keep` takes it ([`crate::key_end::key_ends`] passes
+/// [`crate::key_end::revocation_stands`]: ordered against `k`'s rotations, r110 RK2, r114). The half of
 /// [`crate::key_end::key_ends`] the seat lane reads. `checkpoint.registered_ends`.
-pub fn registered_ends<R: SeatRow>(c: &Concluded<'_, R>, k: &R::Key, rotated: bool) -> Vec<usize> {
-    if rotated {
-        return Vec::new();
-    }
-    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k)).collect()
+pub fn registered_ends<R: SeatRow>(c: &Concluded<'_, R>, k: &R::Key, keep: &dyn Fn(usize) -> bool) -> Vec<usize> {
+    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k) && keep(e)).collect()
 }
 
 /// THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity), MONOTONE,
@@ -5849,7 +5846,15 @@ pub fn self_roster_ends<R: SeatRow, S: CutSpec<R>>(c: &Concluded<'_, R>, law: &S
             .iter()
             .filter_map(|n| by.get(n))
             .any(|q| q.rotates().is_some_and(|(old, new)| new == k && in_roster(old)));
-        if in_roster(k) || cites {
+        // or it names k's own revocation in the seat lane (the fork of a rotation and a revocation, r114: the roster's
+        // act naming the revocation it voids), k holding a seat of that roster with that revocation set aside
+        let names_rev =
+            er.names().iter().filter_map(|n| by.get(n)).filter(|q| registered_self_unseat(**q, k)).any(|v| {
+                let without: Vec<&R> = rows.iter().copied().filter(|q| q.id() != v.id()).collect();
+                let (rs, _) = rosters_by_key(&without, law, spec, &|_, _, _| true);
+                rs.get(k).is_some_and(|w| w.iter().any(|q| Obj::Row(q.id().clone()) == obj))
+            });
+        if in_roster(k) || cites || names_rev {
             out.insert(er.id().clone());
         }
     }

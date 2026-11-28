@@ -160,6 +160,20 @@ pub fn conclude_rule_with_seat<R: KeyEndRow + SeatRow>(p: &Past<'_, '_, R>) -> b
     conclude_rule(p)
 }
 
+/// [`successor`] for a store that holds the seat lane too: no successor while a registered self-unseat of `k` stands
+/// against its rotations (a fork, r114). `key_end.successor`.
+pub fn successor_with_seat<R: KeyEndRow + SeatRow>(
+    c: &Concluded<'_, R>,
+    k: &R::Key,
+    ret: Option<&BTreeSet<usize>>,
+    roster: &BTreeSet<R::Id>,
+) -> Option<R::Key> {
+    if key_ends(c, k, roster).iter().any(|&(e, _)| crate::seat::registered_self_unseat(c.g.row(e), k)) {
+        return None;
+    }
+    successor(c, k, ret, roster)
+}
+
 fn records<'c, R: KeyEndRow>(c: &'c Concluded<'_, R>, k: &R::Key) -> impl Iterator<Item = Record<'c, R::Key, R::T>> + 'c
 where
     R::Key: 'c,
@@ -234,10 +248,35 @@ pub fn voided<R: KeyEndRow>(c: &Concluded<'_, R>, rot: usize, roster: &BTreeSet<
     })
 }
 
+/// Whether revocation `e` of key `k` (either form) is an end of `k` against `k`'s unvoided rotations `rots`, by the
+/// one rule (the Constitution's ruling on r114): whichever of a rotation and a revocation has the other in its past
+/// loses to it. Not where a rotation is in its past (the key was retired first; a rotation with the revocation in ITS
+/// past concludes nothing, [`conclude_rule`]). A rotation CONCURRENT with it is a FORK on the key, both ends, which
+/// the self roster settles as it does two rival rotations: its act naming the one it voids (a rotation: [`voided`];
+/// this revocation: its counted eviction of `k` citing it, an id of `roster`). `key_end.revocation_stands`.
+pub fn revocation_stands<R: KeyEndRow>(
+    c: &Concluded<'_, R>,
+    e: usize,
+    k: &R::Key,
+    rots: &[usize],
+    roster: &BTreeSet<R::Id>,
+) -> bool {
+    if rots.iter().any(|&x| c.g.in_past(x, e)) {
+        return false;
+    }
+    let fork = rots.iter().any(|&x| !c.g.in_past(e, x));
+    let id = c.g.row(e).id();
+    !(fork
+        && roster.iter().filter_map(|r| c.g.idx(r)).any(|r| {
+            let q = c.g.row(r);
+            q.roster_end() == Some(k) && q.names().contains(id)
+        }))
+}
+
 /// Key `k`'s ends, as rows of `c`, each with the instant it ends rows from (if it states one): its LIVENESS (G33:
 /// only the key's own acts end it):
-/// - its self-revocations, but NONE where a concluded rotation of `k` is held at all: a retired key's revocation is
-///   no end, whoever signed it and whatever its past holds;
+/// - its self-revocations where each [`revocation_stands`] against `k`'s rotations (one with a rotation in its past
+///   is a retired key's, no end; one concurrent with a rotation is a fork the self roster settles);
 /// - every concluded rotation naming `k`'s record not [`voided`] by the person's self roster. Two rotations of one
 ///   key are a FORK of the key: both are ends of the old key, and neither successor stands until the self roster's
 ///   count settles which (voids one);
@@ -261,7 +300,7 @@ pub fn ends<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, roster: &BTreeSet<R:
     for &e in c.cs() {
         let q = c.g.row(e);
         if let Some((rk, ra)) = q.revocation() {
-            if rk == k && q.signer() == k && rots.is_empty() {
+            if rk == k && q.signer() == k && revocation_stands(c, e, k, &rots, roster) {
                 out.push((e, Some(ra)));
             }
         }
@@ -295,9 +334,10 @@ pub fn key_ends<R: KeyEndRow + SeatRow>(
     roster: &BTreeSet<R::Id>,
 ) -> Vec<(usize, Option<R::T>)> {
     let mut out = ends(c, k, roster);
-    // a retired key's seat-lane revocation is no end (r110 RK2): none where a concluded rotation of k is held
-    let rotated = out.iter().any(|&(e, _)| c.g.row(e).record().is_some_and(|x| x.succ_of == Some(k)));
-    for e in crate::seat::registered_ends(c, k, rotated) {
+    // the seat lane's revocation ordered against k's rotations by the same rule (r110 RK2, r114): revocation_stands
+    let rots: Vec<usize> =
+        out.iter().map(|&(e, _)| e).filter(|&e| c.g.row(e).record().is_some_and(|x| x.succ_of == Some(k))).collect();
+    for e in crate::seat::registered_ends(c, k, &|e| revocation_stands(c, e, k, &rots, roster)) {
         if !out.iter().any(|&(x, _)| x == e) {
             out.push((e, None));
         }
@@ -556,6 +596,11 @@ pub fn successor<R: KeyEndRow>(
         .filter(|i| ret.is_none_or(|s| s.contains(i)))
         .filter(|&i| !voided(c, i, roster))
         .collect();
+    // a fork of a rotation and a revocation the self roster has not settled names no successor (r114; the seat lane's
+    // form: [`successor_with_seat`])
+    if !rots.is_empty() && ends(c, k, roster).iter().any(|&(e, _)| c.g.row(e).revocation().is_some()) {
+        return None;
+    }
     let keys: BTreeSet<R::Key> =
         c.g.frontier(&rots).into_iter().map(|i| c.g.row(i).record().unwrap().key.clone()).collect();
     if keys.len() == 1 {

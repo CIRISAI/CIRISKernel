@@ -202,7 +202,10 @@ CUT = [
                          rack("rG", "G", ("x", "vC"))], [], "G", "x", None, True),
     ("a revocation by a rotated-away key is no end: C rotated to C2 holding x, then C's key (stolen) revokes itself "
      "after 0, the rotation in its past: x concludes", "seat", CH.ROOM + [X5],
-     recs() + [QCX, KE.revoke("vC", "C", 0, names=("x",))], None, "x", None, True),
+     recs() + [QCX, KE.revoke("vC", "C", 0, names=("x", "qC"))], None, "x", None, True),
+    ("and one concurrent with the rotation (naming only x) is a fork on the key (r114, ruled): both ends, x waits "
+     "on the self roster", "seat", CH.ROOM + [X5],
+     recs() + [QCX, KE.revoke("vC", "C", 0, names=("x",))], None, "x", None, False),
     # r89 (review-51b), S1: finality reads clean receipts and protects only voices valid when cast
     ("M1b: C revoked after 2 (holding C's record), then x signed with the stolen C at 3 holding the revocation, with "
      "receipts by F, G and the stolen C: C's own receipt is not clean, x is not final, and the late vote is cut: x "
@@ -217,7 +220,10 @@ CUT = [
                                             rack("rA", "A", ("x", "vC"))], [], None, "x", None, False),
     # S2: a revocation by k is no end where any concluded rotation of k is held
     ("K1g: D rotated to D2 holding x, then whoever holds the retired D revokes it, naming nothing (the rotation not in "
-     "its past): no end, x concludes", "seat", CH.ROOM + [X0], recs() + [QDX, KE.revoke("vD", "D", 0)], None, "x", None, True),
+     "its past): a fork on the key (r114, ruled), x waits on the self roster", "seat", CH.ROOM + [X0],
+     recs() + [QDX, KE.revoke("vD", "D", 0)], None, "x", None, False),
+    ("K1g: and the same revocation naming the rotation is a retired key's: no end, x concludes", "seat", CH.ROOM + [X0],
+     recs() + [QDX, KE.revoke("vD", "D", 0, names=("qD",))], None, "x", None, True),
     # S3: the thief rotates an unrotated key; a fork of a key; roster ends by the roster's count
     ("M2a EDGE (the stated residual, a person with one key): the thief rotates C (never rotated) to T, naming only C's "
      "record: an end of C like a revocation: the owner's vote x at 0 is cut for a reader with no line", "seat",
@@ -314,7 +320,22 @@ KUR = [KE.rec("kN", "N", 0, None, typ="pseudonym"), KE.att("a1", "N", 1, "kN"),
 # revocations is an end: a thief of the retired key cuts nothing the rotation kept, by either lane
 RKR = [KE.rec("r0", "K", 0, 100), KE.att("a1", "K", 3, "r0"),
        KE.rec("rot", "K2", 0, 100, names=("r0", "a1"), succ_of="K", at_old=4)]
-ROSTER_DIRECT = [
+# r114, ruled: the fork of a rotation and a revocation, settled by the self roster SP. C's row xr is in the rotation
+# qF's past (qF names it), not in the revocation rvC's; the two are concurrent
+QF = KE.rec("qT", "T", 1, None, names=("kC", "xr"), succ_of="C", at_old=1, typ="pseudonym")
+FK = CH.ROOM + SP + recs() + [KT, KE.att("xr", "C", 0, "kC"), QF, KREV("rvC", "C", 2, ("kC",))]
+FK_AFTER = CH.ROOM + SP + recs() + [KT, KE.att("xr", "C", 0, "kC"), QF, KREV("rvC", "C", 2, ("kC", "qT"))]
+FK_CASES = [
+    ("r114 fork: a rotation and a revocation of C concurrent, the roster silent: both ends, xr (in the rotation's past "
+     "only) counts nothing", FK, [], "xr", "C", None, False),
+    ("r114 fork: the roster voids the rotation (its eviction of T citing qT): the revocation stands, xr counts nothing",
+     FK + [VOID("vT", ("P1", "P2"), "qT")], [], "xr", "C", None, False),
+    ("r114 fork: the roster names the revocation (its eviction of C citing rvC): the rotation stands, xr counts",
+     FK + [VOID("vR", ("P1", "P2"), "rvC", key="C")], [], "xr", "C", None, True),
+    ("r114: a revocation with the rotation in its past is no end (the key was retired first): xr counts",
+     FK_AFTER, [], "xr", "C", None, True),
+]
+ROSTER_DIRECT = FK_CASES + [
     ("r106 K1r: a key's row concurrent with its registered self-unseat (the seat lane's revocation) counts nothing",
      [], KUR, "gt", "N", None, False),
     ("and its row the self-unseat names counts", [], KUR, "a1", "N", None, True),
@@ -404,8 +425,8 @@ KUC = lambda cos: [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T"
                    ST.offer("x", "Z", "F", "member", "Q", "self", ("aT",), cosigners=cos)]   # Z's offer over Q's key: no
 # r114 TR (review-48): N's honest row a1, its revocation rv (either form) naming a1, and the thief's row gt with N's
 # key, concurrent with rv. A rotation by the thief WITH rv in its past is no row of N's (the plain end rule) and
-# concludes nothing, so rv stays an end and gt counts nothing (TR2). One concurrent with rv is the retired-key rule's
-# (TR1, the stated residual: the thief can rotate the key as the owner could)
+# concludes nothing, so rv stays an end and gt counts nothing (TR2). One concurrent with rv is a FORK on the key (TR1,
+# ruled): both are ends until the self roster settles it (FK below)
 TRB = [KE.rec("r0", "N", 0, 100), KE.att("a1", "N", 2, "r0"), KE.att("gt", "N", 3, "r0", names=("a1",))]
 TRV = {"key lane": KE.revoke("rv", "N", 5, ("a1",)),
        "seat lane": ST.unseat("rv", "N", "N", "registered", "N", "self", ("r0", "a1"))}
@@ -416,14 +437,22 @@ TR_CASES = [c for form, rv in TRV.items() for c in (
     ("r114 TR0 (%s): and the honest row the revocation names counts" % form, TRB + [rv], "a1", "N", None, True),
     ("r114 TR2 (%s): the thief's rotation with the revocation in its past concludes nothing: gt still counts nothing"
      % form, TRB + [rv, TRROT(("r0", "gt", "rv"))], "gt", "N", None, False),
-    ("r114 TR1 (%s), the stated residual: a rotation concurrent with the revocation retires the key, and gt counts"
-     % form, TRB + [rv, TRROT(("r0", "gt"))], "gt", "N", None, True))]
+    ("r114 TR2 (%s): and the rotated-to key's own row, covered by that rotation, concludes nothing" % form,
+     TRB + [rv, TRROT(("r0", "gt", "rv")), KE.att("n3", "N3", 1, "rot")], "n3", "N3", None, False),
+    ("r114 TR1 (%s), ruled: a rotation concurrent with the revocation is a fork on the key, both ends: gt counts "
+     "nothing until the self roster settles it" % form, TRB + [rv, TRROT(("r0", "gt"))], "gt", "N", None, False))]
 OWN_DIRECT = TR_CASES + [
     ("r110 RK0: K rotated to K2, the rotation naming a1: a1 counts", RKR, "a1", "K", None, True),
-    ("r110 RK1: and the retired key's key-lane self-revocation, not naming a1, is no end: a1 still counts",
-     RKR + [KE.revoke("rv", "K", 1, ("r0",))], "a1", "K", None, True),
-    ("r110 RK2: and the retired key's registered self-unseat, not naming a1, is no end either: a1 still counts",
-     RKR + [ST.unseat("ur", "K", "K", "registered", "K", "self", ("r0",))], "a1", "K", None, True),
+    # under r114's ruling a revocation is ordered against the rotation by its past: one naming the rotation is a
+    # retired key's (no end), one concurrent with it is a fork the self roster settles (both ends meanwhile)
+    ("r110 RK1: and the retired key's key-lane self-revocation, the rotation in its past, is no end: a1 still counts",
+     RKR + [KE.revoke("rv", "K", 1, ("r0", "rot"))], "a1", "K", None, True),
+    ("r110 RK2: and the retired key's registered self-unseat, the rotation in its past, is no end either: a1 counts",
+     RKR + [ST.unseat("ur", "K", "K", "registered", "K", "self", ("r0", "rot"))], "a1", "K", None, True),
+    ("r110 RK1 concurrent (r114, ruled): a key-lane revocation concurrent with the rotation is a fork: a1 waits",
+     RKR + [KE.revoke("rv", "K", 1, ("r0",))], "a1", "K", None, False),
+    ("r110 RK2 concurrent (r114, ruled): a registered self-unseat concurrent with the rotation is a fork: a1 waits",
+     RKR + [ST.unseat("ur", "K", "K", "registered", "K", "self", ("r0",))], "a1", "K", None, False),
     ("r106 U2: a registered self-unseat that concluded nothing is no end: the reader's concurrent row still takes up",
      [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
       CK.row("rF", "note", "F", ("aT",)), ST.unseat("uF", "F", "F", "registered", "F", "group", ())],
@@ -437,12 +466,20 @@ SUCCESSOR = [
     ("a rotation the self roster voided names no successor", CH.ROOM + SP + recs() + [KT, QT0, VOID("vT", ("P1", "P2"), "qT")],
      [], "C", None),
     ("the same rotation, not voided, names its key", CH.ROOM + SP + recs() + [KT, QT0], [], "C", "T"),
+    ("r114 fork: a rotation concurrent with a revocation, the roster silent, names no successor", FK, [], "C", None),
+    ("r114 fork: the roster names the revocation: the rotation's key succeeds",
+     FK + [VOID("vR", ("P1", "P2"), "rvC", key="C")], [], "C", "T"),
+    ("r114 fork: the roster voids the rotation: no successor", FK + [VOID("vT", ("P1", "P2"), "qT")], [], "C", None),
+    ("r110 RK2: a registered self-unseat with the rotation in its past is no end, so no fork: the rotation's key "
+     "succeeds", [ST.unseat("ur", "K", "K", "registered", "K", "self", ("r0", "rot"))],
+     [KE.rec("r0", "K", 0, None, typ="pseudonym"), KE.att("a1", "K", 3, "r0"),
+      KE.rec("rot", "K2", 0, None, names=("r0", "a1"), succ_of="K", at_old=4, typ="pseudonym")], "K", "K2"),
 ]
 PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("window_key_view_unread", ST.MUT),
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
           ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("own_unconcluded_unread", KE.MUT),
-          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("retired_registered_ends", KE.MUT), ("revoked_key_rotates", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("retired_registered_ends", KE.MUT), ("revoked_key_rotates", KE.MUT), ("revocation_void_unread", KE.MUT), ("fork_successor", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries
