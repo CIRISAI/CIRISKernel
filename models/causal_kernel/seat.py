@@ -2997,6 +2997,7 @@ _VOID = [frozenset()]        # the changes void for the counting row being read
 _RVOID = [frozenset()]       # the changes void for the reader that row is read for
 _RPAIRS = [frozenset()]      # the concurrent founders' amendments the reader holds: (a, b, the keys the two seat)
 _RENDS = [frozenset()]       # the seat ends (lay-downs, leavings) behind the reader's line: no vacancy end for it
+_RRIVAL = [frozenset()]      # the rival self-roster foundings for the reader: its line took up another of the identity's
 
 
 def _built_closure(acts, void, stop=lambda q: False):
@@ -3222,6 +3223,32 @@ def held_pairs(S):
                      and not any(q["obj"] == a["obj"] and past(a["id"], q["id"]) and past(b["id"], q["id"]) for q in vs))
 
 
+def reader_rivals(S, own):
+    """The rival self-roster foundings for reader `own` (the ruling on one self roster per identity): of an identity's
+    foundings held, the one the reader's LINE takes up (checkpoint.takes_up) is its roster, and the others are rivals
+    for it. Where the line takes up neither or both, none is chosen: the reader waits (rosters_of). MUTATION
+    rival_line_unread: no reader's line is read."""
+    if own is None or "rival_line_unread" in MUT: return frozenset()
+    mine = {}
+    for g in S.Cs:
+        if is_self_founding(g): mine.setdefault(g["signer"], []).append(g)
+    out = set()
+    for fs in mine.values():
+        if len(fs) < 2: continue
+        t = CP.takes_up(S, own, [f["id"] for f in fs], MUT | CP.MUT, voices)
+        if len(t) == 1: out |= {f["id"] for f in fs if f["id"] not in t}
+    return frozenset(out)
+
+
+def rival_row(r, by, rivals):
+    """Row r is a rival founding, or built on one: a row over it, or the acceptance or withdrawal of a row over it."""
+    if r["id"] in rivals or r.get("obj") in rivals: return True
+    for f in ("of", "target"):
+        q = by.get(r.get(f))
+        if q is not None and (q["id"] in rivals or q.get("obj") in rivals): return True
+    return False
+
+
 def reader_state(S, own, rule=None):
     """The rows concluded again for reader `own`: the changes void for it by its line (over the rows as concluded for
     every reader) are left out of every counting row's fold and heads, so a count that stands for this reader and not
@@ -3236,14 +3263,16 @@ def reader_state(S, own, rule=None):
     PR = held_pairs(S) if "wait_reader_unread" not in MUT else frozenset()
     # the seat ends behind its line are no vacancy ends for it (H4, the election)
     RE = reader_ends(S, own)
-    if not RV and not PR and not RE:
+    # the rival self-roster foundings for it: its line took up another of the identity's
+    RR = reader_rivals(S, own)
+    if not RV and not PR and not RE and not RR:
         _READER_MEMO[key] = (tuple(S.rows), S)
         return S
-    _RVOID.append(frozenset(RV)); _RPAIRS.append(PR); _RENDS.append(RE)
+    _RVOID.append(frozenset(RV)); _RPAIRS.append(PR); _RENDS.append(RE); _RRIVAL.append(RR)
     try:
         R = CK.concluded(CK.kept(list(S.rows)), rule or (lambda r, P, past: seat_rule(r, P, past)))
     finally:
-        _RVOID.pop(); _RPAIRS.pop(); _RENDS.pop()
+        _RVOID.pop(); _RPAIRS.pop(); _RENDS.pop(); _RRIVAL.pop()
     R._reader, R._rvoid, R._paired = own, frozenset(RV), True
     _READER_MEMO[key] = (tuple(S.rows), R)
     return R
@@ -3356,21 +3385,14 @@ def rosters_of(P, k, keep=lambda g: True):
     by = {q["id"]: q for q in P}
     selves = [g for g in P if g["kind"] == "offer" and g.get("obj") == g["id"]
               and (kind_of(by, g["id"]) == "self" or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
-    # one self roster per identity (G1), judged in the row's own past P (r99 D1, the "read at the row" rule): of an
-    # identity's foundings there, the one TAKEN UP (named, or counted over, by a row of P other than itself) is its
-    # roster; a rival founding nothing in P takes up is no part of it (a stolen genesis key's bare founding silences
-    # no one); where several are taken up, or none of several, the reader waits and never picks, and none is
-    # (MUTATION rival_roster_kept: every founding kept; rival_untaken_counted: an untaken rival makes the reader wait)
+    # one self roster per identity (G1, as ruled): a reader's roster for an identity is the founding its LINE takes up
+    # (reader_rivals: the other foundings, and every row over them, conclude nothing for that reader, so they are not
+    # in P). Two foundings by one identity still in P are held by a reader whose line takes up neither (a fresh
+    # reader) or both: it waits and never picks, and neither is that identity's roster (MUTATION rival_roster_kept)
     if "rival_roster_kept" not in MUT:
-        mine = {}
-        for g in selves: mine.setdefault(g["signer"], []).append(g)
-        taken = lambda g: any(q["id"] != g["id"] and (g["id"] in q.get("names", ()) or q.get("obj") == g["id"]) for q in P)
-        one = []
-        for gs in mine.values():
-            if len(gs) == 1: one += gs; continue
-            t = gs if "rival_untaken_counted" in MUT else [g for g in gs if taken(g)]
-            if len(t) == 1: one += t
-        selves = one
+        n = {}
+        for g in selves: n[g["signer"]] = n.get(g["signer"], 0) + 1
+        selves = [g for g in selves if n[g["signer"]] == 1]
     if "person_evict_unread" in MUT:                              # MUTATION: an admission in the past is enough
         return sorted({g["id"] for g in selves if any(q["kind"] == "offer" and q.get("obj") == g["id"] and k in q["to"]
                                                       for q in P)})
@@ -3605,9 +3627,17 @@ def landed_evictions(S, Cs, V=frozenset()):
     """The self rosters' lone-path evictions that landed (CC 3.3.6.4, 4.5.13: the `self_roster_evict` window): each
     concluded landing that says `landed` of a concluded opener with a target, read as the counted eviction it is, an
     unseat of the target's seat in the roster's own scope (its `cuts`), at the landing."""
+    ws = [(L, p, sc, obj) for L, p, sc, obj in landed_windows(S, Cs, "self_roster_evict", V) if p.get("target") is not None]
+    # two concurrent landed evictions of each other (each one's target the other's opener, over one roster) are
+    # contested (rule 4, CC 2.7.7 rule 5): neither lands, as where both object (MUTATION mutual_evictions_land)
+    def mutual(L, p, obj):
+        return "mutual_evictions_land" not in MUT and any(
+            L2["id"] != L["id"] and o2 == obj and p2["target"] == p["signer"] and p["target"] == p2["signer"]
+            and L["id"] not in S.anc.get(L2["id"], ()) and L2["id"] not in S.anc.get(L["id"], ())
+            for L2, p2, _, o2 in ws)
     return [dict(L, kind="unseat", to=(p["target"],), scope=sc, obj=obj, head=tuple(L.get("names", ())),
                  cuts=(("seat", p["target"], sc, obj),))
-            for L, p, sc, obj in landed_windows(S, Cs, "self_roster_evict", V) if p.get("target") is not None]
+            for L, p, sc, obj in ws if not mutual(L, p, obj)]
 
 
 def seats_of(rows):
@@ -4149,6 +4179,9 @@ def end_of_ended(r, P, past, by):
 def seat_rule(r, P, past, table=None, other=None):
     """The conclusion rule. P: r's concluded ancestors."""
     k, by = r["kind"], {q["id"]: q for q in P}
+    # a rival founding concludes nothing for the reader whose line took up another of the identity's, and neither does
+    # everything built on it (a row over it, or accepting or withdrawing one over it) (reader_rivals)
+    if _RRIVAL[-1] and rival_row(r, by, _RRIVAL[-1]): return False
     if k in ("unseat", "withdraw") and end_of_ended(r, P, past, by): return False   # (2): no second end of a seat
     if k in ("offer", "unseat"):
         conf = r["conf"]

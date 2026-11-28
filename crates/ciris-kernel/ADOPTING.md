@@ -451,12 +451,28 @@ genesis key with several key records, or several rosters, is one person. Only ke
 the room seats under that identity: only the roster's live keys speak for it. An adopter must never treat kid == the identity's
 thumbprint as proof that the key speaks for the person; only a live key of the person's self roster does. The key a
 self roster evicts is no voice of its eviction, so a roster whose only live key is its genesis key cannot evict it. One
-self roster per identity: a second founding of a self roster by an identity whose roster the row's past holds is a
-rival and concludes nothing. Two foundings neither in the other's past are judged in the judged row's own past: the
-one a row there takes up (names, or is counted over) is the identity's roster, so a bare rival founding silences no
-one; where the row's past takes up both, or neither of several, the reader waits (neither is the identity's roster); so no key re-founds itself, or adds a device, by founding. The only way onto a self
+self roster per identity (ruled): a second founding of a self roster by an identity whose roster the row's past holds
+concludes nothing. Of an identity's foundings a reader holds, the reader's roster is the founding its LINE takes up, in
+the line's order (`seat::takes_up`): of every row the reader signed or cosigned (concluded for everyone or not, each
+counting only where the reader's key stands) that is a founding of the identity or has one in its past, the earliest
+(none of the others in its past) fix the roster, and a later row over a rival takes up nothing (acknowledging never
+un-voids); first rows reaching two foundings are a wait; a rival founding concludes nothing for that reader, and neither does everything built
+on it; neither or both taken up is a wait (a fresh reader holding two waits). A thief cannot put its rival on an
+honest reader's line. The genesis key keeps its voice on the roster the reader takes up, as any key of that roster
+does, until that roster evicts it: no special rule for the first key either way. The restore case (a one-key identity
+restores its genesis key onto a fresh install and founds before fetching its roster): the re-founding concludes
+nothing for readers on the first roster; the genesis key's voice there is unchanged; a fresh reader holding both
+waits. ADOPTER DUTY: a client holding a genesis key and no roster rows FETCHES the identity's roster before it signs
+anything, and never founds where one may exist. A reader's line reads the reader's voices exactly as the counts do: the rows it
+signed itself (its cosign rows among them) and the seat rows it is a cosigner of that concluded; a claimed cosigner
+on a note or any other row the counts do not read, or on a seat row that concluded nothing, is never read. A reader's
+client names its own previous row in every row it signs, or two concurrent rows of its own can make it wait (P2).
+CALLER DUTY (for every count): `SeatRow::cosigners` lists only verified voices, keys whose own statement over the
+row's payload the store has verified (each voice is a further signed statement, the wire map's rule). Read for a reader through `seat::for_reader`. No key re-founds itself, or adds a device, by founding. The only way onto a self
 roster is that roster's own add (its count, or its lone path); an evicted genesis key is restored only by the
-roster's counted re-admission. A self roster's lone-path window that lands (its `landed` landing concluded) is the
+roster's counted re-admission. A lone addition is weaker than a lone eviction, as the text has it (CC 3.3.6.4: "One
+objection of two others does not stop a lone addition... only a strict majority of the others refuses it"): a live
+genesis key in a three-key roster adds a key over one objection, a stated cost. A self roster's lone-path window that lands (its `landed` landing concluded) is the
 counted change it proposes, read through the same ends reading: a landed eviction ends the target's seat, a landed
 addition seats each proposed key that signed its opener, and the landing is a head a later count over the roster
 names. Present a landing's opener and outcome as `SeatRow::landing`, an eviction opener's target as
@@ -570,7 +586,8 @@ chain of `Seats::stands` above.
 - Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, `on()` the owner binding it is
   made under, from its `refs.also.cites` (N7, CC Part 3 "The owner's acceptance"); present every cited row as
   `cites()` where there may be several, and a binding's node as `node()`, filled from the owner binding's CWT
-  `sub` (the key owned); a cited binding with no `node()` is refused. `owner_of`
+  `sub` (the key owned). A cited binding MUST carry `node()`: one without it is refused (`acceptance_other_binding`),
+  never passed. `owner_of`
   checks it: exactly one cited row (two is refused), an owner binding its signer owns, of the grantee's key, live at
   the acceptance (no re-binding of it in its past). A cited binding not held waits, naming it. A re-binding of the
   cited binding later ends the acceptance's standing: it does not follow the owner's newer binding; the owner

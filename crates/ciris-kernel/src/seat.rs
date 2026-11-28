@@ -2867,7 +2867,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         };
         // a self roster's lone-path eviction that LANDED (its `landed` landing concluded: the window's outcome, as
         // every window) ends the target's seat as a counted eviction does: one ends reading
-        let landed: Vec<(usize, &R::Key, ObjOf<R>, &R::Word)> = cs
+        let landed0: Vec<(usize, &R::Key, ObjOf<R>, &R::Word, &R::Key)> = cs
             .iter()
             .copied()
             .filter(|i| !stale.contains(i))
@@ -2886,8 +2886,19 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     Obj::Row(gid) => by.get(gid)?.scope()?,
                     Obj::Key(_) => return None,
                 };
-                Some((i, t, o, sc))
+                Some((i, t, o, sc, p.signer()))
             })
+            .collect();
+        // two concurrent landed evictions of each other (each one's target the other's opener, over one roster) are
+        // contested (rule 4, CC 2.7.7 rule 5): neither lands, as where both object
+        let landed: Vec<(usize, &R::Key, ObjOf<R>, &R::Word)> = landed0
+            .iter()
+            .filter(|(i, t, o, _, s)| {
+                !landed0
+                    .iter()
+                    .any(|(j, t2, o2, _, s2)| j != i && o2 == o && t2 == s && t == s2 && g.concurrent(*i, *j))
+            })
+            .map(|(i, t, o, sc, _)| (*i, *t, o.clone(), *sc))
             .collect();
         let unseated = |oi: usize, k: &R::Key, sc: Sc<'a, R::Word>| {
             if landed.iter().any(|(l, t, lo, lsc)| {
@@ -4357,6 +4368,71 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
     })
 }
 
+/// THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity), MONOTONE,
+/// in the line's order: the reader's own rows (every row it signed or cosigned, concluded for everyone or not, each
+/// counting only where its key stands: its own revocation, an unseat of its `registered` seat, not in that row's past,
+/// the K1 rule) that reach a founding of `fs` (are it, or have it in their past); of those, the EARLIEST (none of the
+/// others in its past) fix what the line took up, the foundings they reach. A later row reaching another founding
+/// takes up nothing (acknowledging never un-voids). One founding is the reader's roster; two or none is a wait. The
+/// reference is `checkpoint.takes_up`; key_end's reader line is the same rule.
+pub fn takes_up<R: SeatRow>(c: &Concluded<'_, R>, own: &R::Key, fs: &[usize]) -> BTreeSet<usize> {
+    let g = &c.g;
+    let n = g.rows().len();
+    let stands = |a: usize| {
+        !(0..n).any(|x| {
+            let xr = g.row(x);
+            xr.seat_kind() == SeatKind::Unseat
+                && xr.scope().is_some_and(|s| s.as_ref() == "registered")
+                && xr.signer() == own
+                && xr.to().contains(own)
+                && g.in_past(x, a)
+        })
+    };
+    let reach = |a: usize| -> BTreeSet<usize> { fs.iter().copied().filter(|&f| a == f || g.in_past(f, a)).collect() };
+    let taking: Vec<usize> = (0..n)
+        .filter(|&a| {
+            let ar = g.row(a);
+            // its voices as the counted layer reads them ([`voices`]): every row it signed itself, its cosign rows
+            // among them, and a seat row (an offer or an unseat) that CONCLUDED where it is a cosigner. A claimed
+            // cosigner on any other row, or on a seat row that concluded nothing, is never read (r101 R2)
+            let own_row = ar.signer() == own
+                || (matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat)
+                    && c.concluded(a)
+                    && ar.cosigners().contains(own));
+            own_row && stands(a) && !reach(a).is_empty()
+        })
+        .collect();
+    taking.iter().copied().filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a))).flat_map(reach).collect()
+}
+
+/// The rival self-roster foundings for reader `own`: of an identity's foundings held, the one the reader's line takes
+/// up ([`takes_up`]) is its roster and the others are rivals for it; where the line takes up neither or both, none is
+/// chosen and the reader waits. The reference is `seat.reader_rivals`.
+fn reader_rivals<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, own: Option<&R::Key>) -> BTreeSet<R::Id> {
+    let Some(own) = own else { return BTreeSet::new() };
+    let mut mine: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
+    for i in c.cs().iter().copied().filter(|&i| self_founding(law, c.g.row(i))) {
+        mine.entry(c.g.row(i).signer()).or_default().push(i);
+    }
+    let mut out = BTreeSet::new();
+    for fs in mine.values().filter(|fs| fs.len() > 1) {
+        let t = takes_up(c, own, fs);
+        if t.len() == 1 {
+            out.extend(fs.iter().filter(|f| !t.contains(f)).map(|&f| c.g.row(f).id().clone()));
+        }
+    }
+    out
+}
+
+/// Row `r` is a rival founding, or built on one: a row over it, or the acceptance or withdrawal of a row over it.
+fn rival_row<R: SeatRow>(r: &R, by: &BTreeMap<&R::Id, &R>, rivals: &BTreeSet<R::Id>) -> bool {
+    let hit = |q: &R| rivals.contains(q.id()) || matches!(q.obj(), Some(Obj::Row(o)) if rivals.contains(&o));
+    if hit(r) {
+        return true;
+    }
+    [r.of(), r.target()].into_iter().flatten().any(|i| by.get(i).is_some_and(|q| hit(q)))
+}
+
 /// `g` is the founding record of a self roster: its founding scope read through [`SeatLaw::kinds`] as
 /// [`CommunityKind::SelfRoster`].
 fn self_founding<R: SeatRow>(law: &SeatLaw, g: &R) -> bool {
@@ -4384,31 +4460,18 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
     let agents: BTreeSet<R::Key> =
         seats.recs().iter().filter(|x| x.scope.as_ref() == AGENT).map(|x| x.k.clone()).collect();
     let mut out: BTreeMap<R::Key, Vec<&'r R>> = BTreeMap::new();
-    // one self roster per identity (G1), judged in the row's own past `rows` (r99 D1): of an identity's foundings
-    // there, the one TAKEN UP (named, or counted over, by another row of `rows`) is its roster; a rival nothing takes
-    // up is no part of it (a stolen genesis key's bare founding silences no one); where several are taken up, or none
-    // of several, the reader waits and never picks, and none is
-    let mut founded: BTreeMap<&R::Key, Vec<&R>> = BTreeMap::new();
+    // one self roster per identity (G1, as ruled): a reader's roster for an identity is the founding its LINE takes up
+    // (the rivals, and every row over them, conclude nothing for that reader: [`reader_rivals`]). Two foundings by one
+    // identity still among `rows` are held by a reader whose line takes up neither or both: it waits and never picks
+    let mut founded: BTreeMap<&R::Key, usize> = BTreeMap::new();
     for g in rows.iter().copied().filter(|g| self_founding(law, *g)) {
-        founded.entry(g.signer()).or_default().push(g);
-    }
-    let taken = |g: &R| {
-        rows.iter().any(|q| {
-            q.id() != g.id() && (q.names().iter().any(|n| n == g.id()) || q.obj() == Some(Obj::Row(g.id().clone())))
-        })
-    };
-    let mut rosters: BTreeSet<&R::Id> = BTreeSet::new();
-    for gs in founded.values() {
-        let t: Vec<&R> = if gs.len() == 1 { gs.clone() } else { gs.iter().copied().filter(|g| taken(g)).collect() };
-        if let [g] = t.as_slice() {
-            rosters.insert(g.id());
-        }
+        *founded.entry(g.signer()).or_default() += 1;
     }
     for g in rows.iter().copied() {
         if g.seat_kind() != SeatKind::Offer || !founding(g) {
             continue;
         }
-        if self_founding(law, g) && !rosters.contains(g.id()) {
+        if self_founding(law, g) && founded.get(g.signer()).is_some_and(|&n| n > 1) {
             continue;
         }
         let o = Obj::Row(g.id().clone());
@@ -5070,13 +5133,16 @@ pub fn for_reader<'a, R: SeatRow, S: CutSpec<R>>(
     };
     let pairs = held_pairs(c);
     let ends = own.map(|k| reader_ends(c, law, spec, k, None)).unwrap_or_default();
-    if rv.is_empty() && pairs.is_empty() && ends.is_empty() {
+    // the rival self-roster foundings for it: its line took up another of the identity's
+    let rivals = reader_rivals(c, law, own);
+    if rv.is_empty() && pairs.is_empty() && ends.is_empty() && rivals.is_empty() {
         return (c.clone(), rv);
     }
     let cache = MembersAt::<R>::default();
     *cache.rvoid.borrow_mut() = rv.clone();
     *cache.rpairs.borrow_mut() = pairs;
     *cache.rends.borrow_mut() = ends;
+    *cache.rrivals.borrow_mut() = rivals;
     let rows: Vec<&'a R> = c.g.rows().to_vec();
     let rc = crate::layers::conclude(rows, |p| seat_rule_with(p, law, spec, &|_| true, Some(&cache)), None);
     (rc, rv)
@@ -5584,6 +5650,9 @@ struct MembersAt<R: SeatRow> {
     rpairs: RefCell<Vec<HeldPair<R>>>,
     // the seat ends behind the reader's line ([`reader_ends`]): no vacancy end for it (H4, the election)
     pub(crate) rends: RefCell<BTreeSet<<R as Row>::Id>>,
+    // the rival self-roster foundings for the reader ([`reader_rivals`]): they, and every row over them, conclude
+    // nothing for it
+    rrivals: RefCell<BTreeSet<<R as Row>::Id>>,
 }
 
 /// Two concurrent founders' amendments a reader holds: their ids, the keys the two seat, and the room.
@@ -5613,6 +5682,7 @@ impl<R: SeatRow> Default for MembersAt<R> {
             views: RefCell::default(),
             rpairs: RefCell::default(),
             rends: RefCell::default(),
+            rrivals: RefCell::default(),
         }
     }
 }
@@ -6188,6 +6258,14 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
 ) -> bool {
     let r = p.row();
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    // a rival founding concludes nothing for the reader whose line took up another of the identity's, and neither
+    // does everything built on it ([`reader_rivals`])
+    if let Some(cache) = cache {
+        let rivals = cache.rrivals.borrow();
+        if !rivals.is_empty() && rival_row(r, &by, &rivals) {
+            return false;
+        }
+    }
     if end_of_ended(p, law, spec, &by, r) {
         return false; // (2): no second end of a seat
     }

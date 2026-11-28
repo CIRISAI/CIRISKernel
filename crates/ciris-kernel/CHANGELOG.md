@@ -399,10 +399,11 @@ identity whose roster is in the row's past concludes nothing, and two foundings 
 rivals no person is read through (a reader waits); a two-key roster evicts by the lone path when the other key is
 silent through the window (CC 4.5.13), and an objection within it refuses; a landed lone-path eviction ends the target's seat as a
 counted eviction does, a landed lone-path addition seats its consenting keys, and a landed window is a head of a
-later count (new defaulted `SeatRow::landing`, `SeatRow::evicts`, `SeatRow::adds`); rival foundings are judged in
-the judged row's own past (r99 D1: the founding the row's past takes up is the roster; a bare rival silences no
-one), and K7 again admits; a cited binding must name its node (r99 A4); K7's answer moves accordingly (p2's rival S9 leaves p2 no voice).
-Changed: `seat::person_at`
+later count (new defaulted `SeatRow::landing`, `SeatRow::evicts`, `SeatRow::adds`); one self roster per identity is read by the READER'S LINE (ruled): a reader's roster for an identity is the founding
+its line takes up, in the line's order (`seat::takes_up`: the earliest of the reader's own rows reaching a founding fix
+it; a later row over a rival takes up nothing), a rival and everything built on it conclude nothing for that reader, and
+neither or both taken up is a wait (new: `seat::for_reader` reads the reader's rivals); two concurrent landed lone
+evictions of each other are contested (r99 M1); a cited binding must carry its node (r99 A4). Changed: `seat::person_at`
 answers the person's identity key (`Obj::Key` of the genesis key), not the roster row, so two rosters of one genesis
 key, or a genesis key with two key records, are one person (the text's ruling G5). Together: the node set = audiences ∘
 person_keys ∘ nodes_of (ADOPTING.md). The reference: `seat.count_persons`, `seat.person_keys`, `seat.nodes_of`;

@@ -39,8 +39,12 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     rebinding_unread      Seats.owner reads no re-binding: a re-bound node has two owners, none (consent-set's plant)
     landed_eviction_unread  a self roster's landed lone-path eviction ends nothing (the window an outcome only)
     landed_add_unread     a self roster's landed lone-path addition seats nothing
-    rival_untaken_counted an untaken rival founding makes the reader wait (r99 D1: a bare founding silences the person)
     self_founding_family  a family's founding read as a self roster's (a rival of the person's roster)
+    mutual_evictions_land two concurrent lone evictions of each other both land (r99 M1: the roster emptied)
+    rival_line_unread     no reader's line is read: a reader on the first roster waits with a fresh one (the rival stalls)
+    line_order_unread     the line read out of order: a later row over the rival takes it up too, and the reader waits (P1)
+    claimed_cosigner_counted  another signer's claimed cosigners on a note seed the reader's line (r101 R2)
+    unconcluded_cosigner_counted  a seat row that concluded nothing seeds the reader's line by its cosigners (S5, S6)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -131,9 +135,9 @@ CASES = [
     # rosters is one person, whichever roster seats the key
     ("G5: a genesis key with two key records and two rosters: a key of the second roster is the same one person",
      [S, REC, REC2, SX, AX, at(("ax", "rec2"))], "kx", "k1"),
-    ("r96 G1 (one self roster per identity): the row holds both of k1's rosters, neither in the other's past: rivals,"
-     " the reader waits, so a key of either is no person", [S, A2, REC, REC2, SX, AX, at(("a2", "ax", "rec2"))], "k2", None),
-    ("r96 G1: and a key in both of them", [S, A2, REC, REC2, SX, AX2, at(("a2", "ax2", "rec2"))], "k2", None),
+    ("G1 (the reader's line): a fresh reader holding both of k1's rosters, its line taking up neither, waits: a key of "
+     "either is no person", [S, A2, REC, REC2, SX, AX, at(("a2", "ax", "rec2"))], "k2", None),
+    ("G1: and a key in both of them", [S, A2, REC, REC2, SX, AX2, at(("a2", "ax2", "rec2"))], "k2", None),
 ]
 # ---- Part 3: counts over persons (ruled on CIRISConstitution#224: one voice however many live keys sign) ------------
 # four persons, each a self roster named by its genesis key; p1 has a second device key p1b. They found a room whose
@@ -268,9 +272,8 @@ BALLOT_CASES = [
                                  EL.elect("ec", "C", ("ba", "bb", "bc", "be", "bd", "bd2"))], "ec", False),
 ]
 R74_CASES += [
-    ("K7, under r96 G1 and r99 D1: p2 founds S9 beside S2 (S9 lists p1b, unsigned, and seats only p2); the row's past "
-     "takes up S2 (the room's founding names it) and not S9, so S2 is p2's roster: p2 is a voice, p1b, p2, p3 admit z",
-     BASE + [S9, admit_z(("p1b", "p2", "p3"), ("S9",))], "az", True, RULE),
+    ("K7, a fresh reader (its line takes up no roster): it waits, z not admitted",
+     BASE + [S9, admit_z(("p1b", "p2", "p3"), ("S9",))], "az", False, RULE),
     ("the floor of two (KP4): p1 and its device p1b, both seated, are one voice and never meet it: p2 is not removed",
      [SP[1], SP[2], P1B, GF, XF(("p1", "p1b"))], "xf", False, RULE),
     ("the electorate by person (KP4): D is seated only by its device d2, and D's own ballot counts for that member",
@@ -368,7 +371,7 @@ PERSON_KEYS_CASES = [
     ("a key of no roster is its own person", PKW, "zz", ["zz"]),
     ("G5: a genesis key with two key records and one roster: one person, its keys", [S, A2, REC, REC2], "k1",
      ["k1", "k2"]),
-    ("r96 G1: with two rival rosters held, the reader waits: no live key", [S, A2, REC, REC2, SX, AX], "k1", []),
+    ("G1: a fresh reader holding both rosters waits: no live key", [S, A2, REC, REC2, SX, AX], "k1", []),
 ]
 def bind(i, node, owner):
     """An owner-binding: the node's offer of the owner seat over its key, the owner's cosignature its consent."""
@@ -478,23 +481,74 @@ RIV = found("S1r", "p1")
 RIVH = ST.cosign("hh", "p1b", "hh", ("S1", "S1r"))                     # a row naming both foundings
 R74_CASES += [
     ("r99 D1: the evicted p1's bare founding S1r concludes (nothing in its past)", GW + [GEV, RIV], "S1r", True, RULE),
-    ("r99 D2: and the honest devices p1b, p2 and p3 still admit z, naming it", GW + [GEV, RIV,
-     admit_z(("p1b", "p2", "p3"), ("evg", "S1r"))], "az", True, RULE),
-    ("r99 D4: a row in the count's past naming both foundings takes up both: the reader waits, p1b no voice",
-     GW + [GEV, RIV, RIVH, admit_z(("p1b", "p2", "p3"), ("evg", "hh"))], "az", False, RULE),
+    ("r99 D2, a fresh reader (its line takes up no roster): it waits, z not admitted", GW + [GEV, RIV,
+     admit_z(("p1b", "p2", "p3"), ("evg", "S1r"))], "az", False, RULE),
+    ("r99 D4, a fresh reader (its line takes up no roster): it waits, z not admitted", GW + [GEV, RIV, RIVH, admit_z(("p1b", "p2", "p3"), ("evg", "hh"))], "az",
+     False, RULE),
     ("r99 D5: the devices are no keys of the rival roster, so their eviction of p1 from it does not conclude",
      GW + [GEV, RIV, evict("evr", "S1r", "p1", ("p1b", "p1c"), ("S1r",))], "evr", False, RULE),
-    ("r99 D6: no eviction; the stolen genesis key founds a rival: p1b, p2 and p3 admit z",
-     GW + [RIV, admit_z(("p1b", "p2", "p3"), ("a1c", "S1r"))], "az", True, RULE),
-    ("r99 D7: and p1 itself, live in the roster the row takes up, with p2 and p3",
-     GW + [RIV, admit_z(("p1", "p2", "p3"), ("a1c", "S1r"))], "az", True, RULE),
+    ("r99 D6, a fresh reader (its line takes up no roster): it waits, z not admitted",
+     GW + [RIV, admit_z(("p1b", "p2", "p3"), ("a1c", "S1r"))], "az", False, RULE),
+    ("r99 D7, fresh reader: it waits, so p1, p2 and p3 are two of four", GW + [RIV, admit_z(("p1", "p2", "p3"), ("a1c", "S1r"))], "az", False, RULE),
 ]
 R74_CASES += [
     ("r99 drift: a family founding by p1 (scope self, group_kind family) after S1 is no self roster, so no rival: it "
      "concludes", GW + [dict(found("F1", "p1"), names=("a1c",), group_kind="family")], "F1", True, RULE),
 ]
+# the review r99 part 2 (D8 to D10): TAKEN UP means COUNTED by a live voice of the identity, so one thief row naming
+# its rival stalls nothing; a thief's counted row on the rival takes it up only while the thief is a live voice
+RT = ST.cosign("t", "p1", "t", ("S1r",))                                 # the thief names only its rival
+RT2 = ST.cosign("t2", "p1", "t2", ("S1r", "a1c"))                       # names its rival and the honest roster's head
+RTA = add("ta", "S1r", "p1x", ("p1",), ("S1r",))
+RIVD = ST.offer("S1d", "p1", ("p1", "p1x"), "self", "@", "self", cosigners=("p1x",))   # a rival seating p1x                         # the thief's counted addition on its rival
+R74_CASES += [
+    ("r99 D8, a fresh reader (its line takes up no roster): it waits, z not admitted",
+     GW + [GEV, RIV, RT, admit_z(("p1b", "p2", "p3"), ("evg", "t"))], "az", False, RULE),
+    ("r99 D9, a fresh reader (its line takes up no roster): it waits, z not admitted", GW + [GEV, RIV, RT2, admit_z(("p1b", "p2", "p3"), ("evg", "t2"))], "az",
+     False, RULE),
+    ("r99 D10, a fresh reader (its line takes up no roster): it waits, z not admitted",
+     GW + [RIV, RT2, admit_z(("p1b", "p2", "p3"), ("a1c", "t2"))], "az", False, RULE),
+    ("r99c T1, a fresh reader (its line takes up no roster): it waits, z not admitted", GW + [RIV, RTA, admit_z(("p1b", "p2", "p3"), ("a1c", "ta"))], "az", False, RULE),
+    ("r99c T1, fresh reader: the thief's device p1x speaks for no one", GW + [RIV, RTA, admit_z(("p1x", "p2", "p3"), ("a1c", "ta"))],
+     "az", False, RULE),
+    ("r100 X-like: a rival founding cosigned by a thief's own device: a fresh reader waits",
+     GW + [RIVD, admit_z(("p1b", "p2", "p3"), ("a1c", "S1d"))], "az", False, RULE),
+    ("r99 Y3-like, a fresh reader (its line takes up no roster): it waits, z not admitted",
+     GW + [GEV, RIV, RTA, admit_z(("p1b", "p2", "p3"), ("evg", "ta"))], "az", False, RULE),
+]
+# the review r99c (T3, T4): a two-key person g1 (stolen) and k1. The thief founds Sr and adds its own device by its
+# count. A fresh reader holding both waits; a reader whose line took up S reads S (LINE_CASES): the two-key stalemate
+# stands, with no muting.
+TGR = ST.offer("gr", "g1", ("g1", "m2", "m3", "m4"), "member", "@", "self", cosigners=("m2", "m3", "m4"), names=("d1",))
+TRV = found("Sr", "g1")
+TTX = add("tx2", "Sr", "x9", ("g1",), ("Sr",))
+def tadm(signers, names):
+    return ST.offer("az", signers[0], "z", "member", "gr", "group", ("gr",) + tuple(names), head=("gr",),
+                    policy="community_invite", cosigners=tuple(signers[1:]) + ("z",))
+TB = [GS, GD1, TGR, TRV, TTX]
+R74_CASES += [
+    ("r99c T3, a fresh reader (its line takes up no roster): it waits, z not admitted",
+     TB + [tadm(("k1", "m2", "m3"), ("tx2",))], "az", False, RULE),
+    ("r99c T3, fresh reader: it waits, so the thief's device x9 is no voice",
+     TB + [tadm(("x9", "m2", "m3"), ("tx2",))], "az", False, RULE),
+    ("r99c T3, fresh reader: x9 naming its own rival changes nothing: x9 is no voice", TB + [R("xn", "note", "x9", ("tx2",)), tadm(("x9", "m2", "m3"), ("xn",))], "az", False, RULE),
+    ("r99c T3, fresh reader: g1 waits with its identity: g1, m2 and m3 are two of four",
+     TB + [tadm(("g1", "m2", "m3"), ("tx2",))], "az", False, RULE),
+    ("r99c: an honest single founding is unaffected: g1, m2 and m3 admit z", [GS, GD1, TGR, tadm(("g1", "m2", "m3"), ("d1",))],
+     "az", True, RULE),
+    ("the residual: a fresh reader holding only the rival (S not held) holds one founding, and reads it: g1, m2, m3 "
+     "admit z",
+     [TRV, TTX, ST.offer("gr", "g1", ("g1", "m2", "m3", "m4"), "member", "@", "self", cosigners=("m2", "m3", "m4"),
+                         names=("tx2",)), tadm(("g1", "m2", "m3"), ("tx2",))], "az", True, RULE),
+]
+WINDOW_CASES += [
+    ("r99c T4: k1 lone-evicts g1 and the thief objects: refused (the target-silence clause), but no eviction is needed",
+     TB + [WN.opener("op", "k1", "self_roster_evict", "S", ("d1",), target="g1"), WN.answer("og", "g1", "op", "object", ("op",)),
+           WN.receipt("r", "k1", "op", 0), WN.landing("L", "k1", "op", "r", "landed", WN.secs("self_roster_evict"), ("og",))],
+     "refused"),
+]
 PERSON_KEYS_CASES += [
-    ("r99 D3: with the bare rival held, p1's live keys are its devices", GW + [GEV, RIV], "p1", ["p1b", "p1c"]),
+    ("r99 D3, the reader's line: a fresh reader holding the rival waits: no live key", GW + [GEV, RIV], "p1", []),
 ]
 # the lone path in a two-key roster (CC 4.5.13; Eric's correction): one key proposes the other's eviction, and after
 # the window it LANDS unless the other key, the whole of "the other members" and a voice here, objects within it.
@@ -529,6 +583,13 @@ AOP = dict(WN.opener("opa", "k1", "self_roster_add", "S", ("d1",)), to=("k2",), 
 AOP_NC = dict(WN.opener("opa", "k1", "self_roster_add", "S", ("d1",)), to=("k2",))                   # k2 does not
 ADDED = [GS, GD1, AOP, WN.receipt("ra", "k1", "opa", 0), WN.landing("La", "k1", "opa", "ra", "landed", AW)]
 ADDED_NC = [GS, GD1, AOP_NC, WN.receipt("ra", "k1", "opa", 0), WN.landing("La", "k1", "opa", "ra", "landed", AW)]
+def R3ADD(objectors):
+    rows = [dict(WN.opener("op", "p1", "self_roster_add", "S1", ("a1c",), target="k9"), to=("k9",), cosigners=("k9",))]
+    rows += [WN.answer("o" + o, o, "op", "object", ("op",)) for o in objectors]
+    return rows + [WN.receipt("r", "p1", "op", 0),
+                   WN.landing("L", "p1", "op", "r", "landed", AW, tuple("o" + o for o in objectors))]
+
+
 def landed_state(rows):
     return CK.concluded(CK.kept(list(rows)), RULE_W)
 # (name, rows, what is read, want)
@@ -553,9 +614,122 @@ LANDED_CASES = [
      LANDED + [add("d3", "S", "k3", ("k1",), ("L",))], lambda S: bool(S.C.get("d3")), True),
     ("and g1, evicted, adds nothing", LANDED + [add("d3", "S", "k3", ("g1",), ("L",))], lambda S: bool(S.C.get("d3")),
      False),
+    ("r99 M1: two concurrent lone-path evictions of each other, both silent, are contested: neither lands",
+     [GS, GD1] + lone_evict("k1", "g1", False) + lone_evict("g1", "k1", False, "op2", "2"),
+     lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
+    # R3, the text (CC 3.3.6.4, a stated cost: "One objection of two others does not stop a lone addition... only a
+    # strict majority of the others refuses it. That is weaker than the eviction"): a live thief genesis key lone-adds
+    # its own key k9 to the honest roster S1
+    ("R3 (CC 3.3.6.4, a stated cost): the live thief p1 lone-adds k9 to S1, no objection: k9 is a key of p1",
+     GW + R3ADD(()), lambda S: sorted(ST.person_keys(S, "p1")), ["k9", "p1", "p1b", "p1c"]),
+    ("R3: one objection of the two others does not stop it", GW + R3ADD(("p1b",)),
+     lambda S: sorted(ST.person_keys(S, "p1")), ["k9", "p1", "p1b", "p1c"]),
+    ("R3: a strict majority of the others (both) refuses it", GW + R3ADD(("p1b", "p1c")),
+     lambda S: sorted(ST.person_keys(S, "p1")), ["p1", "p1b", "p1c"]),
     ("a landed addition without the new key's own consent seats nothing", ADDED_NC,
      lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
 ]
+
+# THE READER'S LINE (ruled): a reader's roster for an identity is the founding its line takes up (checkpoint.takes_up);
+# a rival founding concludes nothing for that reader, and neither does everything built on it; neither or both taken up
+# is a wait. The genesis key keeps its voice on the taken-up roster, as any key does, until that roster evicts it.
+# Readers: p4, whose line took up S1 (the room's founding it cosigned names a1b); None, a fresh reader; x, whose line
+# took up only the cosigned rival S1r; m4 in the two-key world (the room's founding names d1).
+LEVT = evict("evt", "S1", "p1", ("p1b", "p1c"), ("a1c",))
+LRX = ST.offer("S1r", "p1", ("p1", "x"), "self", "@", "self", cosigners=("x",))     # a rival cosigned by a thief key x
+LT = ST.cosign("t", "x", "t", ("S1r", "a1c"))
+LTX = add("tx", "S1r", "y", ("p1", "x"), ("S1r",))
+LTXa = add("txa", "S1r", "y", ("p1", "x"), ("S1r", "evt"))
+LTXx = add("txx", "S1r", "y", ("x",), ("S1r", "evt"))
+LH = ("p1b", "p2", "p3")
+LWORLD = {
+    "X1": GW + [LRX, admit_z(LH, ("a1c",))], "X2": GW + [LRX, admit_z(LH, ("a1c", "S1r"))],
+    "X3": GW + [LRX, LT, admit_z(LH, ("t",))], "X4": GW + [LRX, LEVT, admit_z(LH, ("evt", "S1r"))],
+    "X5": GW + [LRX, admit_z(("x", "p2", "p3"), ("S1r", "a1c"))],
+    "Y3": GW + [LRX, LTX, LEVT, admit_z(LH, ("evt", "tx"))], "Y5": GW + [LRX, LEVT, LTXa, admit_z(LH, ("txa",))],
+    "Y6": GW + [LRX, LEVT, LTXx, admit_z(LH, ("txx",))], "Y6 (y signs)": GW + [LRX, LEVT, LTXx, admit_z(("y", "p2", "p3"), ("txx",))],
+    "D2": GW + [GEV, RIV, admit_z(LH, ("evg", "S1r"))], "D4": GW + [GEV, RIV, RIVH, admit_z(LH, ("evg", "hh"))],
+    "D6": GW + [RIV, admit_z(LH, ("a1c", "S1r"))], "D7": GW + [RIV, admit_z(("p1", "p2", "p3"), ("a1c", "S1r"))],
+    "D8": GW + [GEV, RIV, RT, admit_z(LH, ("evg", "t"))], "D9": GW + [GEV, RIV, RT2, admit_z(LH, ("evg", "t2"))],
+    "D10": GW + [RIV, RT2, admit_z(LH, ("a1c", "t2"))],
+    "T1": GW + [RIV, RTA, admit_z(LH, ("a1c", "ta"))], "T1 (p1x signs)": GW + [RIV, RTA, admit_z(("p1x", "p2", "p3"), ("a1c", "ta"))],
+    "T2": GW + [RIV, RTA, GEV, admit_z(LH, ("evg", "ta"))],
+    "T3": TB + [tadm(("k1", "m2", "m3"), ("tx2",))], "T3 (g1 signs)": TB + [tadm(("g1", "m2", "m3"), ("tx2",))],
+    "T3 (x9 signs)": TB + [tadm(("x9", "m2", "m3"), ("tx2",))],
+}
+# (case, reader, whether z is admitted for it)
+LWANT = [("X1", "p4", True), ("X1", None, True), ("X1", "x", False), ("X2", "p4", True), ("X2", None, False),
+         ("X3", "p4", True), ("X3", None, False), ("X4", "p4", True), ("X4", None, False), ("X5", "p4", False),
+         ("X5", None, False), ("X5", "x", True), ("Y3", "p4", True), ("Y3", None, False), ("Y5", "p4", True),
+         ("Y5", None, False), ("Y6", "p4", True), ("Y6", None, False), ("Y6 (y signs)", "p4", False),
+         ("D2", "p4", True), ("D2", None, False), ("D4", "p4", True), ("D6", "p4", True), ("D7", "p4", True),
+         ("D7", None, False), ("D8", "p4", True), ("D9", "p4", True), ("D10", "p4", True), ("D10", None, False),
+         ("T1", "p4", True), ("T1", None, False), ("T1 (p1x signs)", "p4", False), ("T2", "p4", True),
+         ("T3", "m4", True), ("T3", None, False), ("T3 (g1 signs)", "m4", True), ("T3 (x9 signs)", "m4", False),
+         ("T3 (x9 signs)", "x9", True)]
+# the restore case (the Constitution's cost case): a one-key identity g restores its genesis key onto a fresh install
+# and founds Sg2 before fetching its roster Sg. "The re-founding concludes nothing for readers on the first roster; the
+# genesis key's voice there is unchanged; a fresh reader holding both waits."
+RSg, RSg2 = found("Sg", "g"), found("Sg2", "g")
+RRM = ST.offer("rm", "g", ("g", "m2", "m3", "m4"), "member", "@", "self", cosigners=("m2", "m3", "m4"), names=("Sg",))
+RADM = ST.offer("az", "g", "z", "member", "rm", "group", ("rm", "Sg2"), head=("rm",), policy="community_invite",
+                cosigners=("m2", "m3", "z"))
+LWORLD["restore"] = [RSg, RRM, RSg2, RADM]
+# the line in its ORDER (r100r): the earliest taking-up rows fix the roster; a later row over the rival takes up
+# nothing. p4's first taking-up row is the room's founding gc (S1 in its past)
+LN4 = R("n4", "note", "p4", ("S1r", "gc", "p4n"))          # a tip-following note, naming p4's own previous row
+LV4 = R("v4", "note", "p4", ("S1r",))                      # a row naming only the rival, concurrent with gc
+LZ4 = admit_z(("p1b", "p2", "p4"), ("a1c", "S1r"))          # p4 cosigns the admission itself (P3)
+LM4N = R("m4n", "note", "m4", ("tx2", "gr", "m4r"))
+LQ1, LQ2 = R("q1", "note", "q", ("a1c",)), R("q2", "note", "q", ("S1r",))   # q's two concurrent first rows
+LWORLD.update({
+    "P1": GW + [LRX, LN4, admit_z(LH, ("a1c", "S1r", "n4"))], "P1'": GW + [LRX, LN4, admit_z(LH, ("a1c", "S1r"))],
+    "P2": GW + [LRX, LV4, admit_z(LH, ("a1c", "S1r"))], "P3": GW + [LRX, LZ4],
+    "T6": TB + [LM4N, tadm(("k1", "m2", "m3"), ("tx2",))],
+    "Q": GW + [LRX, LQ1, LQ2, admit_z(LH, ("a1c", "S1r"))],
+})
+# P2: v4 names only the rival, not p4's own earlier row gc: an honest client's rows always have its own last row in
+# their past, so a reader row omitting it is the reader's own self-fork, and waiting is the honest answer (ruled)
+LSD = R("sd", "note", "p1", ("S1r",), cosigners=("p4",))     # the thief's row CLAIMING p4 as a cosigner (R2)
+LWORLD["R2"] = GW + [LRX, LSD, admit_z(LH, ("a1c", "S1r"))]
+LWANT += [("P1", "p4", True), ("P1'", "p4", True), ("P2", "p4", False), ("P3", "p4", True), ("P3", None, False),
+          ("T6", "m4", True), ("Q", "q", False), ("Q", "p4", True),
+          # R2 (r101, the safer form): the line reads the reader's own signed rows and the seat rows whose voice it is,
+          # never another signer's claimed cosigners on any other row: the thief's note claiming p4 seeds nothing
+          ("R2", "p4", True),
+          # S5, S6: a thief's seat row that concludes nothing, listing p4 as a cosigner, seeds nothing
+          ("S5", "p4", True), ("S6", "p4", True)]
+LWORLD["S5"] = GW + [LRX, ST.offer("sdo", "p1", "zz", "member", "gc", "group", ("S1r",), head=("S1r",),
+                                   policy="community_invite", cosigners=("p4", "zz")), admit_z(LH, ("a1c", "S1r"))]
+LWORLD["S6"] = GW + [LRX, ST.unseat("sdu", "p1", "p2", "member", "gc", "group", ("S1r",), head=("S1r",),
+                                    policy="community_remove", cosigners=("p4",)), admit_z(LH, ("a1c", "S1r"))]
+LWANT += [("restore", "m4", True), ("restore", None, False)]
+# a reader that signs the count itself names its own previous row in it (an honest client, ADOPTING): x and x9
+LWORLD["X5 (x names its own row)"] = GW + [LRX, R("xn", "note", "x", ("S1r",)),
+                                         admit_z(("x", "p2", "p3"), ("S1r", "a1c", "xn"))]
+LWORLD["T3 (x9 signs, naming its own row)"] = TB + [R("x9n", "note", "x9", ("tx2",)), tadm(("x9", "m2", "m3"), ("tx2", "x9n"))]
+LWORLD["restore (m4's row)"] = [RSg, RRM, RSg2, R("m4r", "note", "m4", ("rm",)), RADM]
+LWANT = [(k, rd, w) for k, rd, w in LWANT if (k, rd) not in (("X5", "x"), ("T3 (x9 signs)", "x9"), ("restore", "m4"))]
+LWANT += [("X5 (x names its own row)", "x", True), ("T3 (x9 signs, naming its own row)", "x9", True),
+          ("restore (m4's row)", "m4", True),
+          # x's line begins at its own voice on the concluded rival founding S1r (its cosignature there): its count
+          # has S1r in its past, so the founding is its first row
+          ("X5", "x", True)]
+# each reader's own first row (a reader's line is only the rows it signed itself, r101 R2): p4 and m4 acknowledge
+# their rooms, x and x9 the rivals they hold; q's own rows are in its world
+READER_ROW = {"p4": R("p4n", "note", "p4", ("gc",)), "m4": R("m4r", "note", "m4", ("gr",)),
+              "x": R("xn", "note", "x", ("S1r",)), "x9": R("x9n", "note", "x9", ("tx2",))}
+def with_reader(rows, rd):
+    extra = READER_ROW.get(rd)
+    return list(rows) + ([extra] if extra is not None and all(r["id"] != extra["id"] for r in rows) else [])
+LINE_CASES = [("r100 %s, %s" % (k, "a fresh reader" if rd is None else "reader " + rd), with_reader(LWORLD[k], rd), rd,
+               "az", w) for k, rd, w in LWANT]
+
+
+def line_concludes(rows, reader, rid):
+    S = CK.concluded(CK.kept(list(rows)), RULE)
+    R = ST.reader_state(S, reader) if reader is not None else S
+    return bool(R.C.get(rid))
 
 
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
@@ -563,8 +737,9 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "fold_lift_by_key", "fold_author_by_key", "remover_counted_over", "opener_withdrawal_voter",
           "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread",
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
-          "rebinding_unread", "landed_eviction_unread", "landed_add_unread", "rival_untaken_counted",
-          "self_founding_family")
+          "rebinding_unread", "landed_eviction_unread", "landed_add_unread",
+          "self_founding_family", "mutual_evictions_land", "rival_line_unread", "line_order_unread",
+          "claimed_cosigner_counted", "unconcluded_cosigner_counted")
 
 
 def answer(rows, k):
@@ -659,6 +834,10 @@ def main():
             if f(CK.arrive(o, RULE_W)) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
                 break
+    for name, rows, rd, rid, want in LINE_CASES:
+        got = line_concludes(rows, rd, rid)
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
     caught = 0
     for plant in PLANTS:
         ST.MUT.add(plant)
@@ -672,7 +851,8 @@ def main():
                   [c[0] for c in LATENT_CASES if latent_outcome(c[1]) != c[2]] + \
                   [c[0] for c in PERSON_KEYS_CASES if sorted(ST.person_keys(concluded_set(c[1]), c[2])) != c[3]] + \
                   [c[0] for c in NODES_CASES if sorted(ST.nodes_of(concluded_set(c[1]), c[2])) != c[3]] + \
-                  [c[0] for c in LANDED_CASES if c[2](landed_state(c[1])) != c[3]]
+                  [c[0] for c in LANDED_CASES if c[2](landed_state(c[1])) != c[3]] + \
+                  [c[0] for c in LINE_CASES if line_concludes(c[1], c[2], c[3]) != c[4]]
         finally:
             ST.MUT.discard(plant)
         caught += bool(hit)

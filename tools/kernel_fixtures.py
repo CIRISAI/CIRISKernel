@@ -443,6 +443,9 @@ def seat_cases():
     # the review r78k's rows: the fold's lift and the count's receipt by person (seat.count_persons), the roster pinned
     for _name, rows, _want in KPC.R78K_CASES:
         record(rows, A.WIN)
+    # the reader's line (one self roster per identity, ruled): each case's rows read for its reader (a fresh reader: none)
+    for _name, rows, rd, _rid, _want in KPC.LINE_CASES:
+        record(rows, A.SEAT, readers=(rd,) if rd is not None else ())
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
