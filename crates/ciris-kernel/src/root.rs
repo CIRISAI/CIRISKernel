@@ -439,11 +439,13 @@ where
         }) && self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k)))
     }
 
-    /// The holders of later bundle `b` (a join or not) that must sign it, each with the keys its statement may be under (CIRISVerify's
-    /// per-bundle read, the Constitution's reading 1): a holder no named predecessor seats, under its own key; a
-    /// holder whose recovery commitment in `b` differs from the one any named predecessor seating it carries, under
-    /// a key some predecessor seats it at and no recovery in the join's branches retired. So after a recovery on one
-    /// branch, the join carries the recovered holder's voice. In `b`'s holder order.
+    /// The holders of later bundle `b` that must sign it beside its predecessors' majorities, each with the keys its
+    /// statement may be under (CC 2.6.1.11, "How a bundle is counted": "Each holder it adds signs it too, as does each
+    /// holder whose recovery commitment it changes", for every later bundle; a join reads both over each predecessor):
+    /// a holder no named predecessor seats, under its own key; a holder whose recovery commitment in `b` differs from
+    /// the one any named predecessor seating it carries, under a key some predecessor seats it at and no recovery in
+    /// `b`'s branches retired. So after a recovery on one branch, a join carries the recovered holder's voice. In
+    /// `b`'s holder order. A recovery is the exception to the count, and is never read here.
     pub fn join_signers(&self, b: &B) -> Vec<(B::Key, BTreeSet<B::Key>)> {
         let prevs = b.prev();
         let gone = self.retired(prevs);

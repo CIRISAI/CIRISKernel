@@ -277,8 +277,9 @@ CASES = [
                         recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), RD(anchor="b0", acks=("j",)),
      {"concluded": {"j": T}, "holders": {"h1", "h2", "h3b", "h4"}}),
     ("join", "and revives nothing: the retired h3 signing it is no voice (h3 alone with h4 on am)",
-     [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h3", "h4"), version=2,
-                        recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC, {"concluded": {"j": Fa}}),
+     [B0, REC, AMD, bare(nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h3", "h4"), version=2,
+                             recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"}))], (), (), ANC,
+     {"concluded": {"j": Fa}}),
     ("join", "the wire: a named predecessor in the past of another is Invalid (s1 and b0): genesis_bundle_malformed, "
              "the detail further_prev_not_newest (as CIRISVerify returns it; the Constitution's commit after 0e80f21)",
      FORK + [nxt("j", ("s1", "b0"), H3 + ("h4",), ("h1", "h2", "h3"), version=2)], (), (), ANC,
