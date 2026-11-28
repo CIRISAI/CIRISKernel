@@ -570,15 +570,18 @@ def t10(t):
     b, bad = win(full); t.order(bad)
     t.fact("a reader kept from the objections: recount=%s; a reader with them: recount=%s (void=%s, contest=%s)" % (a["recount"], b["recount"], b["void"], b["contest"]),
            a["recount"] == "landed" and b["recount"] == "contested")
+    # the accord's halt as ruled (2026-11-28): no landing concludes (each node's own fuse), and the confirmation is a
+    # strict majority of the standing holders, met at once with no landing. The eclipse is of a confirming voice
     title, cases = WN.halt_world()
-    full = cases[4][1]                                    # honest holder lands the lapse; a relay kept the confirming voice from it
+    full = cases[1][1]                                    # the halting holder and h2 confirm: two of three
     a, bad = win([r for r in full if r["id"] != "c2"]); t.order(bad)
     b, bad = win(full); t.order(bad)
-    c, bad = win(cases[5][1]); t.order(bad)
-    t.fact("halt, honest concluder eclipsed: its own view %s, the full view %s, after a landing naming both %s" % (a["recount"], b["recount"], c["recount"]),
-           (a["recount"], b["recount"], c["recount"]) == ("lapsed", "contested", "confirmed"))
+    t.fact("halt, a reader a relay keeps from one confirming voice: its view %s, the full view %s" % (a["recount"], b["recount"]),
+           (a["recount"], b["recount"]) == ("open", "confirmed"))
     return dict(cls="CONCEDED", who="a relay between the objector and the concluder (and its readers) for the length of the window; no key",
-                witness="p(h1 halts) c2(h2 confirms, withheld) L(h3, honest, lands 'lapsed'). h3 and every reader without c2: lapsed, and agents resume. Readers with c2: contested.",
+                witness="Self roster: p(d3 evicts d1) L(d3 lands) o1,o2 (the owner's objections, withheld): a reader without them, landed; with them, contested. "
+                        "Halt (ruled 2026-11-28): p(h1 halts) c1(h1 confirms) c2(h2 confirms, withheld): a reader without c2, open (its own fuse runs, "
+                        "and the halt lapses at it); a reader with c2, confirmed.",
                 protects="KERNEL 8: 'Nodes may differ while a window is open'; causal_order README: 'A window's length is not in the rows.' Under recount the landing does not stand once the objection is held "
                          "(rule (i) would let it stand for ever). In practice it lasts as long as the eclipse; whatever was done on the outcome meanwhile is done. Recovery: any concluder signs a landing naming both.",
                 fix="")
