@@ -158,6 +158,11 @@ CASES = [
      "A alone concludes nothing, and D's receipt still counts: closed",
      HONEST + [ST.unseat("rd", "A", "D", "member", OBJ, "group", ("g",), head=("g",), policy="community_remove"),
                ACK("k1", "A", "ec"), ACK("k2", "B", "ec"), ACK("k4", "D", "ec")], "ec", {}, (T, T)),
+    ("rule 7: an opening's voices through the key view: D, revoked holding its founding signature (not "
+     "the opening), cosigns the opening with A and B: D is no voice of it, A and B are two of five: it concludes "
+     "nothing, nothing is seated (D casts no ballot)",
+     [G5, LM, OPEN("op", "lm", ("A", "B", "D"))] + [B("ba", "A", "C"), B("bb", "B", "C"), B("bc", "C", "C"), B("be", "E", "B")]
+     + [SEAT("ec", "C", ("ba", "bb", "bc", "be"))], "ec", {"keys": RECS + [KE.revoke("vD", "D", 0, names=("g",))]}, (F, F)),
     ("rule 2 by persons: the room seats A and both of person P's keys (P1 and its device C); an opening signed by P1 "
      "and C is one person of two: concludes nothing, and nothing is seated", None, "open_persons", {}, (F, F)),
     ("rule 5: a contested pair of counted removals (A, B, C remove D; C, D, E remove A, concurrently) is taken by no "
@@ -205,7 +210,7 @@ def _person_world():
 PLANTS = ("end_fork_unread", "open_old_heads", "open_by_key", "openings_both_stand",
           "close_no_wait", "close_key_view_unread", "close_receipt_unclean",
           "acceptance_key_view_unread", "inputs_key_view_unread", "rival_openings_read", "electorate_at_seating",
-          "departures_raw", "fork_untaken_end", "close_reads_concluded")
+          "departures_raw", "fork_untaken_end", "close_reads_concluded", "open_key_view_unread")
 
 
 def run():

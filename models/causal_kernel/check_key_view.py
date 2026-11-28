@@ -462,6 +462,7 @@ def fixture():
         KS = KE.state(list(sr) + list(kr))
         keys = sorted({q["signer"] for q in sr} | {k for q in sr for k in q.get("cosigners", ())})
         per = [[rid, k, KE.counts_by(KS, rid, k)] for rid in SIGNED if rid in KS.by for k in keys]
+        sr = EW.opened(sr)                     # the world written as read: with its opening
         out.append({"name": name, "rule": rule, "seat": [r["id"] for r in sr], "rows": list(sr) + list(kr), "view": view,
                     "counts": per, "voices": sorted(v) if v is not None else None, "concluded": c, "final": fin})
     for name, sr, kr, view, probe, (c, st) in LONE:
