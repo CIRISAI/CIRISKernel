@@ -298,7 +298,9 @@ where
         out
     }
 
-    /// Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None.
+    /// Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None. `version_prev_mismatch` and
+    /// `further_prev_not_newest` are DETAILS of the malformed-bundle refusal (the text's token table, as CIRISVerify
+    /// returns them), returned here as the detail, never as a refusal name of their own.
     fn inconsistency(&self, b: &B) -> Option<Reason> {
         let ps: Vec<&B> = b.prev().iter().filter_map(|p| self.b(p)).collect();
         if ps.len() != b.prev().len() {

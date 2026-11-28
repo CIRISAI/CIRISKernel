@@ -20,8 +20,9 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
                  recovery in the bundle's past used) concludes nothing. A recovery takes S'' like any bundle, the
                  holder (either key) its voice; recoveries of one seat are settled by T between them.
     the heads    `version` is prev's plus one (a join: the greater plus one) and `family` is prev's: a consistency
-                 check, never ranked; a mismatch is Invalid (`version_prev_mismatch`); a join naming a predecessor in
-                 another's lineage past is Invalid (`further_prev_not_newest`); a recovery whose prev is in the
+                 check, never ranked; a mismatch is Invalid, the malformed-bundle refusal with detail `version_prev_mismatch`; a
+                 join naming a predecessor in another's lineage past is Invalid, the same refusal with detail
+                 `further_prev_not_newest` (a detail, never a refusal name of its own); a recovery whose prev is in the
                  lineage past of a bundle its holder signed concludes nothing (`recovery_behind_head`). A later bundle is a counted change of the holders'
                  roster: it names the newest bundle in its signers' own past, and S'' and T at the fork point
                  apply to it as to a roster change (MINE, the Constitution's derived reading).
@@ -233,7 +234,9 @@ class Root:
         return self.inconsistency(b) is None
 
     def inconsistency(self, b):
-        """Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None."""
+        """Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None. `version_prev_mismatch` and
+        `further_prev_not_newest` are DETAILS of the malformed-bundle refusal (the text's token table, as CIRISVerify
+        returns them), returned here as the detail."""
         ps = [self.by[p] for p in b["prev"] if p in self.by]
         if len(ps) != len(b["prev"]): return "genesis_bundle_prev_not_valid"      # one not held: waits
         if set(b["recovery"]) != set(b["holders"]) and "commitments_unread" not in MUT: return "genesis_bundle_malformed"
