@@ -970,7 +970,7 @@ plant "counted_recount_unread: a counted conferral from an old past not re-count
 }'
 plant "growth_ends_read: an end read as body growth" src/seat.rs '    let grows = |q: &R| q.seat_kind() == SeatKind::Offer && body_change(q, o);' '    let grows = |q: &R| body_change(q, o);'
 plant "growth_any_body: a counted conferral re-counted against any growth" src/seat.rs '.filter(|&x| offer_of(x).is_some_and(|xr| seats_body(xr) && !same_batch(xr)))' '.filter(|&x| offer_of(x).is_some())'
-plant "accept_of_past_grows: an acceptance of an offer in the act's past is growth (r97 A1)" src/seat.rs '                && !of_past' ''
+plant "behind_grows: a row from behind the act is growth against it (r97 A1, r98)" src/seat.rs '                && !behind_act(c, x, q)' ''
 plant "batch_any_heads: the same voices' duty conferrals are one batch at any heads (r97 B6)" src/seat.rs 'own(x) == own(qr) && same_heads(x);' 'own(x) == own(qr);'
 plant "growth_ends_unread: the grown body keeps the ends the reader holds (r97 V1, V2)" src/seat.rs 'with_growth_ends(c, q, o, void, with_growth(c, q, &growth))' 'with_growth(c, q, &growth)'
 plant "a record change re-counted on growth" src/seat.rs '!roster_word(s.as_ref()) && s.as_ref() != "record")' '!roster_word(s.as_ref()))'

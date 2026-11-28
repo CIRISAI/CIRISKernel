@@ -666,13 +666,27 @@ def concurrent_growth(S, q, o, void=frozenset()):
     (MUTATION growth_held_unread: none read)."""
     if "growth_held_unread" in MUT:
         return []
-    # (an acceptance of a void offer is void growth too: it completes nothing; and an acceptance of an offer in q's own
-    # past is no growth against q: q's signers saw that offer decided, so its accepter alone voids nothing by timing,
-    # r97 A1, MUTATION accept_of_past_grows)
-    past_offer = lambda c: c["kind"] == "accept" and c.get("of") in S.anc[q["id"]] and "accept_of_past_grows" not in MUT
+    # (an acceptance of a void offer is void growth too: it completes nothing; and growth from behind q is none,
+    # behind_act: an acceptance of an offer in q's own past among it, so its accepter alone voids nothing by timing,
+    # r97 A1)
     return [c for c in growth_of(S, o) if c["id"] != q["id"] and c["id"] not in void and c.get("of") not in void
             and c["id"] not in S.anc[q["id"]] and q["id"] not in S.anc[c["id"]] and not one_batch(S, q, c, o)
-            and not past_offer(c)]
+            and not behind_act(S, c, q)]
+
+
+def behind_act(S, c, q):
+    """Growth row `c` (or the offer it accepts) is BEHIND act `q`: every head it names is in q's own past, and q names
+    a head c's line has not reached (a row written at an older head than q's, from the old past). It is no growth
+    against q: q was counted at a newer head, and a row from behind it is the one re-counted (the Constitution's ruling
+    on the batch, r98: the signers' own later row makes their new row at the old head a self-fork; the reader's line
+    past the head makes it behind the line). MUTATION behind_grows: it is growth too."""
+    if "behind_grows" in MUT: return False
+    x = S.by.get(c.get("of")) if c["kind"] == "accept" else c
+    if x is None: return False
+    hx, hq = set(x.get("head", ())), set(q.get("head", ()))
+    if not hx or not hq or not hx <= S.anc[q["id"]]: return False
+    reached = hx | {a for h in hx for a in S.anc.get(h, ())}
+    return not hq <= reached
 
 
 def with_growth(S, q, o, void=frozenset(), growth=None):

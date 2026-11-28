@@ -837,24 +837,6 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
     }
     Some(kind)
 }
-
-/// The act a counted row is, decided from its kind, its scope and its object, never from the policy it states:
-/// (act, scope class, kind) as the acts table writes them, or `None` (not a counted act, or an object with no
-/// kind). `get` looks a row up among those the caller holds (the row's past).
-///
-/// - Over a community: an offer whose `content()` names an unseat of the same seat (object, scope, keys) is the
-///   lift, of that seat's scope class (the table binds the agent's); an offer or unseat of a roster seat
-///   ([`SeatLaw::roster_seats`]) is an admission or a removal of that seat; one of a detector seat
-///   (`detect:*`) is the holders' conferral or withdrawal of that seat; an offer of a duty under the ranked count
-///   ([`Policy::Ranked`]) of `moderate` is the election's seating, THE ONE ACT READ FROM THE STATED POLICY in this
-///   tag (the election is not answered safely by it: a caller must not rely on a ranked seating); another offer of
-///   a duty is the duty holders' conferral; an unseat of a duty counted over all the duty holders (`counted()`
-///   `duty`) is their withdrawal, and one counted over the members (`member`, or none) is the recall; an unseat of
-///   a duty counting any other body is no act. Any other scope, or none, is no act.
-/// - Over an accord: any counted row is a standing act.
-/// - Over a self roster: an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
-///
-/// A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's.
 /// The row `r` cites ([`the_cite`]) where `pick` takes it, among the rows `get` holds.
 fn cited<'r, R: SeatRow + 'r>(
     r: &R,
@@ -879,6 +861,23 @@ fn lifted<'r, R: SeatRow + 'r>(r: &R, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> 
     cited(r, get, &|q: &R| lone_act_duty(q.seat_kind()).is_some() || q.seat_kind() == SeatKind::Unseat)
 }
 
+/// The act a counted row is, decided from its kind, its scope and its object, never from the policy it states:
+/// (act, scope class, kind) as the acts table writes them, or `None` (not a counted act, or an object with no
+/// kind). `get` looks a row up among those the caller holds (the row's past).
+///
+/// - Over a community: an offer whose `content()` names an unseat of the same seat (object, scope, keys) is the
+///   lift, of that seat's scope class (the table binds the agent's); an offer or unseat of a roster seat
+///   ([`SeatLaw::roster_seats`]) is an admission or a removal of that seat; one of a detector seat
+///   (`detect:*`) is the holders' conferral or withdrawal of that seat; an offer of a duty under the ranked count
+///   ([`Policy::Ranked`]) of `moderate` is the election's seating, THE ONE ACT READ FROM THE STATED POLICY in this
+///   tag (the election is not answered safely by it: a caller must not rely on a ranked seating); another offer of
+///   a duty is the duty holders' conferral; an unseat of a duty counted over all the duty holders (`counted()`
+///   `duty`) is their withdrawal, and one counted over the members (`member`, or none) is the recall; an unseat of
+///   a duty counting any other body is no act. Any other scope, or none, is no act.
+/// - Over an accord: any counted row is a standing act.
+/// - Over a self roster: an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
+///
+/// A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's.
 pub fn act_of<'r, R: SeatRow + 'r>(
     law: &SeatLaw,
     get: &dyn Fn(&R::Id) -> Option<&'r R>,
@@ -1497,15 +1496,6 @@ fn act_targets<'r, R: SeatRow + 'r>(r: &R, get: &dyn Fn(&R::Id) -> Option<&'r R>
     }
 }
 
-/// One of the four acts against a member of an affiliation (CC 4.4.3.12): a removal, a quarantine marker, a slashing
-/// verdict, a takedown of the member's content (the three new acts' affiliation rows are held in code until the
-/// table has them).
-fn against_member<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::Id) -> Option<&'r R>, r: &R) -> bool {
-    affiliation_removal(law, get, r)
-        || (lone_act_duty(r.seat_kind()).is_some()
-            && r.obj().is_some_and(|obj| kind_of(law, get, &obj) == Some(CommunityKind::Affiliation)))
-}
-
 /// Whether a quarantine marker, a slashing verdict or a takedown notice (`p.row()`) concludes: its shape holds (a
 /// marker's state `withhold` or `release`, a release naming the withhold of the same key it lifts; a verdict's
 /// outcome `proven_rogue` or `not_proven`; a takedown naming a content row in its past), it names the newest
@@ -1951,19 +1941,38 @@ pub(crate) fn concurrent_growth<R: SeatRow>(
             // (an acceptance of a void offer is void growth too: it completes nothing)
             let xr = c.g.row(x);
             let of_void = xr.of().and_then(|i| c.g.idx(i)).is_some_and(|i| void.contains(&i));
-            // an acceptance of an offer in q's own past is no growth against q: q's signers saw that offer decided
-            // (r97 A1)
-            let of_past = xr.seat_kind() == SeatKind::Accept
-                && xr.of().and_then(|i| c.g.idx(i)).is_some_and(|i| c.g.ancestors(q).has(i));
             x != q
                 && !void.contains(&x)
                 && !of_void
-                && !of_past
+                && !behind_act(c, x, q)
                 && !c.g.ancestors(q).has(x)
                 && !c.g.ancestors(x).has(q)
                 && !one_batch(c, law, q, x, o)
         })
         .collect()
+}
+
+/// Growth row `x` (or the offer it accepts) is BEHIND act `q`: every head it names is in `q`'s own past, and `q`
+/// names a head `x`'s line has not reached (a row written at an older head than `q`'s, from the old past). It is no
+/// growth against `q`: `q` was counted at a newer head, and the row from behind it is the one re-counted (the
+/// Constitution's ruling on the batch, r98; an acceptance of an offer in `q`'s past among it, r97 A1).
+fn behind_act<R: SeatRow>(c: &Concluded<'_, R>, x: usize, q: usize) -> bool {
+    let g = &c.g;
+    let xr = g.row(x);
+    let off = if xr.seat_kind() == SeatKind::Accept {
+        match xr.of().and_then(|i| g.idx(i)) {
+            Some(i) => g.row(i),
+            None => return false,
+        }
+    } else {
+        xr
+    };
+    let hx: Vec<usize> = off.head().iter().filter_map(|h| g.idx(h)).collect();
+    let hq: Vec<usize> = g.row(q).head().iter().filter_map(|h| g.idx(h)).collect();
+    if hx.is_empty() || hq.is_empty() || !hx.iter().all(|&h| g.ancestors(q).has(h)) {
+        return false;
+    }
+    !hq.iter().all(|&h| hx.iter().any(|&a| a == h || g.ancestors(a).has(h)))
 }
 
 /// The growth of the DECIDING body of counted act `q` (the body it is counted over, [`SeatRow::counted`]) the reader

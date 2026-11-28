@@ -16,11 +16,13 @@ changes there:
 Growth is seating changes and their acceptances; an end is no growth. An acceptance of a void offer, or of an offer
 in the act's own past, is no growth. The grown body reads the ends the reader holds. A conferral that fails seats
 nothing, and every row built on it is void with it. A change of the record, an election's seating and a lift are
-read by their own counts. **Stated residual (the ruled batch, r98):** the same deciding voices can repeat a duty
-conferral at an old head at any later time and it stays one batch with the earlier one (the batch is bounded by its
-head, not by time): two holders who seated others at a head can, from that head, seat more and carry a count over
-the holders seated since elsewhere. Plants: `counted_recount_unread`, `growth_ends_read`, `growth_any_body`,
-`accept_of_past_grows`, `growth_ends_unread`, `batch_any_heads`, `lone_regrowth_unread`.
+read by their own counts. **The batch, as the Constitution ruled (r98):** a row from behind the act (its heads in
+the act's own past, older than the act's: an acceptance of an offer in its past, or the same voices' new row at an
+old head after their own later row) is no growth against it and is itself the one re-counted; a reader whose line
+has passed the head reads such a row as behind its line. **Stated residual:** a reader with no line, holding no
+later row by the signers, reads the same voices' duty conferrals at one head as one batch (the head rule's stated
+cost). Plants: `counted_recount_unread`, `growth_ends_read`, `growth_any_body`,
+`behind_grows`, `growth_ends_unread`, `batch_any_heads`, `lone_regrowth_unread`.
 
 **Parity of `spec_from_policy` (review-53).** `window::Why` is ordered by its word and the cell it names
 (`Why::word`, `Why::other`), so the crate's refusals are in `window.py`'s order, and `tests/policy_spec.rs` compares
