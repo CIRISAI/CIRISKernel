@@ -767,6 +767,42 @@ UNDECIDED = [
     ("live: the same row is no recovery", [GI, RECOVER()], "rv", None),
 ]
 
+# An infrastructure room's liveness at a held row (CC 3.2, seat.infra_live): "live" at M + 1 active founders or more,
+# ("stalled", active, M) below, None for no infrastructure room. Each case is read in every arrival order of its rows
+# (causal_kernel.arrive), which must give the same answer. (name, rows, obj, at, answer)
+INFRA_LIVE = [
+    ("three founders of three (M = 2): live at the founding row", [GI], "g", "g", "live"),
+    ("f3 leaves: stalled at its leaving, two active of M = 2", [GI, W3], "g", "w3", ("stalled", 2, 2)),
+    ("the leaving is not in the founding row's past: still live there", [GI, W3], "g", "g", "live"),
+    ("four founders (M = 3), f4 leaves: three active is not M + 1, stalled", [GI4, W4], "g", "w4", ("stalled", 3, 3)),
+    ("f3 and f4 leave too: two active", [GI4, W4, dict(W3, names=("w4",))], "g", "w3", ("stalled", 2, 3)),
+    ("a founders' amendment seats f4 under quorum:3/4: four active of M = 3, live at it", GROW[:2], "g", "a4", "live"),
+    ("then f4 leaves: three active of M = 3, stalled", GROW[:2] + [ST.withdraw("w4", "f4", "a4", ("a4",))], "g", "w4",
+     ("stalled", 3, 3)),
+    ("an ordinary community is no infrastructure room: no answer",
+     [ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"))], "g", "g", None),
+    ("a row not held: no answer", [GI], "g", "w3", None),
+]
+
+
+def infra_live(rows, obj, at, plant=None, order=None):
+    with planted(plant):
+        S = CK.arrive(list(order if order is not None else rows), lambda r, P, past: ST.seat_rule(r, P, past))
+        return ST.infra_live(S, obj, at)
+
+
+def infra_live_problems(plant=None):
+    import itertools
+    out = []
+    for name, rows, obj, at, want in INFRA_LIVE:
+        for o in itertools.permutations(rows):
+            got = infra_live(rows, obj, at, plant, o)
+            if got != want:
+                out.append("infra_live %s, order %s: got %s, expected %s" % (name, [r["id"] for r in o], got, want))
+                break
+    return out
+
+
 # The review's A1 and A3 (rows of r56/tools/b2.py and b4.py): the head rules' job and room-keys-fix's (RK2). They hold
 # once `heads` and `room-keys-fix` are merged; until then main() reports them and does not fail on them.
 G3 = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"))
@@ -938,7 +974,7 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread",
           "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread", "contested_one_sided",
           "self_voice_on_offer", "multi_target_removal", "multi_target_recall", "multi_target_duty_withdraw",
-          "multi_target_demotion")
+          "multi_target_demotion", "live_at_m", "live_at_founding")
 
 
 @contextlib.contextmanager
@@ -1024,6 +1060,7 @@ def main():
     for name, rows, rid, want in UNDECIDED:
         if undecided(rows, rid) != want:
             problems.append("undecided %s: got %s, expected %s" % (name, undecided(rows, rid), want))
+    problems += infra_live_problems()
     for name, rows, rid, want in CONCLUDE_Q4:
         if concludes(rows, rid, True) != want:
             problems.append("%s: got %s, expected %s" % (name, concludes(rows, rid, True), want))
@@ -1043,6 +1080,7 @@ def main():
         hit += ["tips: " + c[0] for c, got in zip(TIPS, tip_answers(plant)) if got != [w for _, _, w in c[2]]]
         hit += ["dissolved: " + c[0] for c in DISSOLVED if dissolved(c[1], plant) != c[2]]
         hit += ["undecided: " + c[0] for c in UNDECIDED if undecided(c[1], c[2], plant) != c[3]]
+        hit += infra_live_problems(plant)
         caught += bool(hit)
         print("  plant %-16s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
         if not hit:

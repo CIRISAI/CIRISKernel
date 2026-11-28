@@ -717,6 +717,15 @@ def undecided_cases(AC):
     return out
 
 
+def infra_live_cases(AC):
+    out = []
+    for name, rows, obj, at, want in AC.INFRA_LIVE:
+        refs = {}
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "obj": obj, "at": at,
+                    "live": want if want is None or want == "live" else {"active": want[1], "m": want[2]}})
+    return out
+
+
 def dissolved_cases(AC):
     out = []
     for name, rows, want in AC.DISSOLVED:
@@ -747,6 +756,7 @@ def acts_cases():
             "infrastructure_words": [[w, list(ST.infrastructure_rule(w)) if ST.infrastructure_rule(w) else None]
                                      for w, _ in AC.INFRA_WORDS],
             "undecided": undecided_cases(AC),
+            "infra_live": infra_live_cases(AC),
             "dissolved": dissolved_cases(AC)}
 
 

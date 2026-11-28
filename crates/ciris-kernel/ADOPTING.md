@@ -200,6 +200,35 @@ migrations, and the local operational store.
   electorate, the winner and the departed apart, closes the election. A room re-closes an election an equivocator
   reopened by removing it by count and a receipt after the removal.
 
+## Re-asking
+
+Every answer persist asks tells a row that waits from one that concludes nothing, and a wait names the row it
+waits on. Hold the row, index it under that id, and ask again when a row of that id is held; ask nothing again on
+any other arrival.
+
+- **A row offered whose names are not all held** waits in `held::Held` (`Held::waits`); `Held::lacks(id)` gives
+  the ids it still lacks, ascending. It is kept and concluded on the admission that keeps the last of them, and
+  `Admitted::kept` lists it then. A row kept on another row's arrival (released by it) is held by that arrival,
+  so index a wait under every id it lacks and re-ask on each id in `kept`, not only on the row offered.
+- **The seat and window rules** over a kept row: `seat::seat_rule_why` and `window::rule_why` give `Ok(true)`,
+  `Ok(false)`, or `Err(Wait(x))`. A kept row reads only its concluded ancestors, which no arrival changes (a
+  later row is no row's ancestor), so `Ok(false)` is final: do not re-ask it. The one read outside the fold is
+  the trust root's, for a stalled infrastructure room's recovery widening: with no trust root read it waits on
+  the grant it names (`seat::stalled_recovery_waits`); with one, on the row the `RootReading` does not hold
+  (`RootView::waits_on`, `Root::grant_waits`): the grant, the reader's anchor, or a bundle the grant names.
+  `seat::seat_rule` and `window::rule` are those answers with a wait read as `false`.
+- **The conferral answers** (`conferral::answers`, `standing::answers`, `content::answers`) already give
+  `Answer::Undecided(x)`, the same notion.
+- **A recovery widening's conclusion is not final while it waits.** A `Held` concludes a row once, when it is
+  kept; a recovery widening concluded before its grant arrived concluded nothing there. When the row a
+  `seat_rule_why` wait names arrives, conclude that row and its descendants again (a `Held` built afresh over
+  the kept rows, or `seat::conclude`), not only the row.
+- **Liveness.** `seat::infra_live(c, law, spec, obj, at)` gives an infrastructure room's `Liveness` at held row
+  `at`: `Live`, or `Stalled { active, m }` (fewer than M + 1 active founders, the count the seat rule reads).
+
+`root.json`'s `waits` replays the model's cases (`check_root.py`, WAITS) in several arrival orders each: a row
+that waits on X, X arrives and it concludes; and rows that conclude nothing with every row held.
+
 ## Points to settle before adoption
 
 - **Persons and voices.** The adapter presents each signing key as its person's voice (`PersonsAt::voice`) and

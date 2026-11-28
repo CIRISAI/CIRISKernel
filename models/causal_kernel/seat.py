@@ -406,6 +406,64 @@ def stalled_recovery(r, P, past):
     return "stalled_recovery_needs_bundle" if len(founders) < pr[1] + 1 else None
 
 
+def stalled_recovery_waits(r, P, past):
+    """stalled_recovery, naming the row it waits on: the grant the widening names (`bundle`), where r is a stalled
+    room's recovery widening; None where stalled_recovery is None (MUTATION waits_names_nothing: None always)."""
+    if "waits_names_nothing" in MUT: return None
+    return r["bundle"] if stalled_recovery(r, P, past) is not None else None
+
+
+def recovery_waits(r, P, past):
+    """The row a refused recovery widening waits on: with no trust root read, the grant a stalled widening names; with
+    one, the row the root lacks (Root.grant_waits) where the refusal is the grant's own. None: the refusal is about rows
+    held."""
+    view = ROOT[-1]
+    if view is None: return stalled_recovery_waits(r, P, past)
+    ok, why = recovery_verdict(r, P, past)
+    if ok or why in ("not_a_recovery", "recovery_changes_more", "not_stalled", "not_signed_by_named_key",
+                     "grant_scope_not_this_room", "grant_identity_not_user"):
+        return None
+    return view[0].grant_waits(r["bundle"], view[1])
+
+
+# the row the seat rule being asked waits on (seat_rule_why): [row id, the row it waits on], innermost last
+_WAITS = []
+
+
+def seat_rule_why(r, P, past, table=None, other=None):
+    """seat_rule, telling a row that waits from one that concludes nothing: True or False over the rows read, or
+    ("waits", x) where it concludes nothing only for want of row x, which the caller does not hold. The rule over a kept
+    row reads only its concluded ancestors, which no arrival changes; the one read outside them is the trust root's, for
+    a stalled room's recovery widening (recovery_waits). False concludes nothing with all it reads held."""
+    _WAITS.append([r["id"], None])
+    try:
+        v = seat_rule(r, P, past, table, other)
+        w = _WAITS[-1][1]
+    finally:
+        _WAITS.pop()
+    return ("waits", w) if not v and w is not None else bool(v)
+
+
+def infra_live(S, obj, at):
+    """Infrastructure room obj's liveness at held row `at` (CC 3.2, "Live and stalled"): the founder seats at `at` as a
+    head (the concluded rows at or before it), less the keys whose leaving is among them, against the M of the record
+    in force there: "live", or ("stalled", active, M). None where `at` is not held or not concluded, or obj is no
+    infrastructure room there with a quorum word (MUTATION live_at_m: live at M; live_at_founding: the seats read at
+    the founding row, not at `at`)."""
+    if at not in S.by or not S.C.get(at): return None
+    P = [q for q in S.Cs if q["id"] in S.anc[at] or q["id"] == at]
+    by = {q["id"]: q for q in P}
+    past = lambda a, b: a in S.anc[b]
+    if kind_of(by, obj) != "infrastructure": return None
+    rec = protocol_record(by, obj)
+    pr = infrastructure_rule(rec.get("consensus_protocol")) if rec is not None else None
+    if pr is None: return None
+    active = members_at(P, past, obj, (obj,) if "live_at_founding" in MUT else (at,), "founder")
+    active = active - count_left(P, past, obj, "founder")
+    m = pr[1]
+    return "live" if len(active) >= m + (0 if "live_at_m" in MUT else 1) else ("stalled", len(active), m)
+
+
 # the trust root this node reads (models/trust_root/root.py): (Root, reader), or None. With none, a stalled recovery is
 # undecided; with one, it is judged (recovery_verdict)
 ROOT = [None]
@@ -3171,7 +3229,9 @@ def seat_rule(r, P, past, table=None, other=None):
             # an infrastructure room's recovery widening while stalled: judged against the trust root this node reads
             # (recovery_verdict); with none read, undecided (stalled_recovery), and it concludes nothing
             if r.get("bundle") is not None:
-                return ROOT[-1] is not None and recovery_verdict(r, P, past)[0]
+                v = ROOT[-1] is not None and recovery_verdict(r, P, past)[0]
+                if not v and _WAITS and _WAITS[-1][0] == r["id"]: _WAITS[-1][1] = recovery_waits(r, P, past)
+                return v
             # one target per counted end (the Constitution's ruling on review-54's multi-target hole): a removal, a
             # recall, a duty withdrawal or a demotion naming more than one key concludes nothing; several are several
             # rows, each judged alone at its head (MUTATIONS multi_target_removal, multi_target_recall,

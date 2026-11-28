@@ -326,6 +326,19 @@ def voices_of(answers, p, past):
     return [a for a in answers if not (a["says"] == "approve" and any(past(w, a["id"]) for w in wd))]
 
 
+def rule_why(r, P, past):
+    """rule, telling a row that waits from one that concludes nothing: True, False, or ("waits", x) (seat.seat_rule_why).
+    A window row reads its concluded ancestors, which no arrival changes, so it waits only where the seat's rule does:
+    a row that is no window row, or an opener that is an offer or an unseat."""
+    k = r["kind"]
+    if k not in ("open", "answer", "receipt", "landing") and not is_opener(r):
+        return ST.seat_rule_why(r, P, past)
+    if is_opener(r) and k != "open":
+        w = ST.seat_rule_why(r, P, past)
+        if w is not True: return w
+    return bool(rule(r, P, past))
+
+
 def rule(r, P, past):
     """The conclusion rule: window rows here, every other row by seat.seat_rule."""
     k = r["kind"]

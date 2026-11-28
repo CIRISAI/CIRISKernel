@@ -69,6 +69,18 @@ pub trait Row {
     fn signer(&self) -> &Self::Key;
 }
 
+/// What an answer waits on: the row it reads that the caller does not hold. An answer that is `Err(Wait(x))`
+/// concludes nothing yet and will not change until `x` arrives; hold the row and ask again when `x` is held. An
+/// answer that is `Ok(false)` concludes nothing with what it reads all held: no row's arrival changes it, so it is
+/// not re-asked. The conferral modules' `Answer::Undecided(x)` is the same notion. ADOPTING.md, "Re-asking".
+///
+/// A row kept by the fold reads only its concluded ancestors, and a later row is no row's ancestor (the
+/// locality theorem, [`held`]): the seat and window rules over a kept row wait only on what lies outside the fold,
+/// the trust root's rows (a stalled recovery's grant, the reader's anchor, a bundle the grant names). A row
+/// offered whose names are not all held waits on those names ([`held::Held::lacks`]).
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Wait<I>(pub I);
+
 /// A row's signed instants, for the answers read **at a held row** (the `_at` forms: [`seat::Seats::holders_at`],
 /// [`key_end::live_at`], [`head::View::window_at`], ...). An answer read at a row takes its instant from that
 /// row, never from a clock, so two nodes holding the same rows give the same answer (CC 2.7.9: a reading at a

@@ -21,10 +21,16 @@ impl World {
         let spec = DictCut;
         match name {
             "window" => {
+                let why = window::rule_why(p, &|w| self.windows.get(w).cloned(), &self.law, &spec);
                 if let Some(v) = window::rule(p, &|w| self.windows.get(w).cloned(), &self.law, &spec) {
+                    // no window row of the fixtures reads past its concluded ancestors: none waits
+                    assert_eq!(why, Some(Ok(v)), "window::rule_why disagrees with window::rule");
                     return v;
                 }
-                seat_rule(p, &self.law, &spec, &|_| true)
+                assert_eq!(why, None);
+                let v = seat_rule(p, &self.law, &spec, &|_| true);
+                assert_eq!(ciris_kernel::seat::seat_rule_why(p, &self.law, &spec, &|_| true), Ok(v));
+                v
             }
             "route" => {
                 if matches!(r.kind.as_str(), "msg" | "ack") {

@@ -1366,6 +1366,26 @@ where
         Ok(())
     }
 
+    /// The row [`grant_in_force`](Root::grant_in_force) waits on for the reader, where it refuses the grant for a
+    /// row not held: the grant itself (`grant_unknown`, and no row of that id in the lane), the reader's anchor
+    /// (`genesis_bundle_not_anchored`, and no bundle of that id), or the first bundle the grant names that is not
+    /// held (`grant_bundle_void`). None where the grant is in force, or refused with every row it reads held (a
+    /// row held and void, a count short): that refusal stands until a held row changes, not on an arrival it names.
+    /// In the order `grant_in_force` reads them, so the row named is the one its own refusal is about.
+    pub fn grant_waits(&self, gid: &B::Id, rd: &Reader<B::Id, B::Key>) -> Option<B::Id> {
+        let Some(g) = self.grants.get(gid) else {
+            return self.lane.idx(gid).is_none().then(|| gid.clone());
+        };
+        if self.heads(rd).is_none() {
+            return rd.anchor.as_ref().filter(|a| self.b(a).is_none()).cloned();
+        }
+        let valid: BTreeSet<&B::Id> = self.valid().into_iter().map(|b| b.id()).collect();
+        match g.bundles().iter().find(|n| !valid.contains(n)) {
+            Some(n) if self.b(n).is_none() => Some(n.clone()),
+            _ => None,
+        }
+    }
+
     /// The grant of this id, whether or not it stands.
     pub fn grant(&self, gid: &B::Id) -> Option<&'a G> {
         self.grants.get(gid).copied()
@@ -1423,6 +1443,10 @@ where
         self.root.sub_delegation(grant, &self.reader)
     }
 
+    fn waits_on(&self, grant: &B::Id) -> Option<B::Id> {
+        self.root.grant_waits(grant, &self.reader)
+    }
+
     fn seat_grant(&self, grant: &B::Id, room: &crate::seat::Obj<B::Id, B::Key>, duty: &str) -> Result<B::Key, Reason> {
         self.root.grant_in_force(grant, &self.reader)?;
         let g = self.root.grant(grant).ok_or("grant_unknown")?;
@@ -1445,6 +1469,12 @@ pub trait RootView<I, K, O> {
     /// `genesis_bundle_not_anchored`, `grant_bundle_void`, `grant_count_short`, `grant_voices_not_in_force`,
     /// `grant_scope_not_in_force`, `grant_scope_not_this_room`, `grant_identity_not_user`.
     fn recovery_grant(&self, grant: &I, room: &O) -> Result<K, Reason>;
+    /// The row a refusal of grant `grant` waits on: one this reading reads and does not hold (the grant, the
+    /// reader's anchor, a bundle the grant names; [`Root::grant_waits`]). None: the refusal, if any, is about rows
+    /// held. Default: none.
+    fn waits_on(&self, _grant: &I) -> Option<I> {
+        None
+    }
     /// Whether the charter in force at this node carries sub_delegation for the grant's duty (the delegation
     /// gate's question for a chain from a root grant); None: the grant does not resolve here, or no root is read.
     fn sub_delegation(&self, _grant: &I) -> Option<bool> {

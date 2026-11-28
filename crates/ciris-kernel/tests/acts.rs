@@ -229,6 +229,38 @@ fn undecided_replay() {
     assert_eq!(bad, 0);
 }
 
+/// An infrastructure room's liveness at a held row (`seat::infra_live`, `check_acts.py`'s INFRA_LIVE).
+#[test]
+fn infra_live_replay() {
+    use ciris_kernel::layers::{conclude, kept};
+    use ciris_kernel::seat::{infra_live, seat_rule, Liveness, Obj};
+    use common::{DictCut, J};
+    let fx = fixture("acts.json");
+    let law = law_of(fixture("seat.json").at("law"));
+    let (mut cases, mut bad) = (0, 0);
+    for c in fx.at("infra_live").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(c.at("rows").arr(), &refs);
+        let k = kept(&rows, |_| true);
+        let cc = conclude(k, |p| seat_rule(p, &law, &DictCut, &|_| true), None);
+        let got = infra_live(&cc, &law, &DictCut, &Obj::Row(c.at("obj").s().to_string()), &c.at("at").s().to_string());
+        let want = match c.at("live") {
+            J::Null => None,
+            J::Str(s) if s == "live" => Some(Liveness::Live),
+            w => Some(Liveness::Stalled { active: w.at("active").i() as usize, m: w.at("m").i() as u64 }),
+        };
+        cases += 1;
+        if got != want {
+            bad += 1;
+            eprintln!("infra_live {}: got {got:?}, want {want:?}", c.at("name").s());
+        }
+    }
+    report("an infrastructure room's liveness against check_acts.py", cases, bad);
+    assert!(cases > 0);
+    assert_eq!(bad, 0);
+}
+
 #[test]
 fn no_table_binds_nothing() {
     let law = SeatLaw::default();

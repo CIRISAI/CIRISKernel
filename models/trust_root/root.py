@@ -925,6 +925,22 @@ class Root:
             return (False, "halt_signer_not_in_force")
         return (True, None)
 
+    def grant_waits(self, gid, rd):
+        """The row grant_in_force waits on for reader rd, where it refuses the grant for a row not held: the grant itself
+        (grant_unknown, and no lane row of that id), the reader's anchor (genesis_bundle_not_anchored, and no bundle of
+        that id), or the first bundle the grant names that is not held (grant_bundle_void). None where the grant is in
+        force, or refused with every row it reads held: that refusal is re-read when a held row changes, not on an
+        arrival it names. In the order grant_in_force reads them (MUTATION waits_on_grant: always the grant;
+        waits_anchor_unread: never the anchor)."""
+        if "waits_on_grant" in MUT: return None if self.grant_in_force(gid, rd)[0] else gid
+        g = self.grants.get(gid)
+        if g is None: return gid if gid not in self.rows else None
+        if self.heads(rd) is None:
+            a = rd.get("anchor")
+            return a if a is not None and a not in self.by and "waits_anchor_unread" not in MUT else None
+        n = next((n for n in g["bundles"] if n not in self.valid()), None)
+        return n if n is not None and n not in self.by else None
+
     def grant_in_force(self, gid, rd):
         """(True|False, reason): the grant exists and RESOLVES for the reader only while (i) its voices (every voice
         it holds: its own signers and later cosignatures, grant_voices) are a strict majority of ALL the holders IN

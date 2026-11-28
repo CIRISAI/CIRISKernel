@@ -38,7 +38,7 @@ use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
 use crate::ops;
 use crate::seat::{
-    self, members_in, members_in_scopes, persons, seat_rule, Obj, Policy, SeatKind, SeatLaw, SeatRow, AGENT,
+    self, members_in, members_in_scopes, persons, Obj, Policy, SeatKind, SeatLaw, SeatRow, AGENT,
 };
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -482,6 +482,19 @@ pub fn rule<R: WindowRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,
 ) -> Option<bool> {
+    rule_why(p, windows, law, spec).map(|v| v.unwrap_or(false))
+}
+
+/// [`rule`], telling a window row that waits from one that concludes nothing ([`crate::Wait`]): `None` for a row
+/// that is not a window row; `Some(Err(Wait(x)))` where it concludes nothing only for want of row `x`. A window row
+/// reads its concluded ancestors, which no arrival changes, so it waits only where an opener that is an offer or
+/// an unseat waits by the seat's rule ([`seat::seat_rule_why`]).
+pub fn rule_why<R: WindowRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    windows: &Tables<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+) -> Option<Result<bool, crate::Wait<R::Id>>> {
     rule_with(p, windows, law, spec, true)
 }
 
@@ -493,34 +506,38 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,
     prefill: bool,
-) -> Option<bool> {
+) -> Option<Result<bool, crate::Wait<R::Id>>> {
     let r = p.row();
     let k = r.win_kind()?;
     let rows: Vec<&R> = p.rows().collect();
     let past = |a: &R::Id, b: &R::Id| p.past(a, b);
     if k == WinKind::Open {
-        let (Some(w), Some(obj)) = (r.window().and_then(windows), r.obj()) else { return Some(false) };
+        let (Some(w), Some(obj)) = (r.window().and_then(windows), r.obj()) else { return Some(Ok(false)) };
         // an act that opens its own window is validly made by the seat's rule too
-        if matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && !seat_rule(p, law, spec, &|_| true) {
-            return Some(false);
+        if matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) {
+            match seat::seat_rule_why(p, law, spec, &|_| true) {
+                Ok(true) => {}
+                Ok(false) => return Some(Ok(false)),
+                Err(w) => return Some(Err(w)),
+            }
         }
         // an opening names the newest counted changes over its object in its own past, and is counted there (H1)
         if !matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat)
             && seat::newer_head_in_past(p, law, &obj, r.head(), &seat::signers(r))
         {
-            return Some(false);
+            return Some(Ok(false));
         }
         let scope = w.opener.as_ref().unwrap_or(&w.counted);
-        return Some(members_in(&rows, &past, law, spec, &obj, r.head(), scope).contains(r.signer()));
+        return Some(Ok(members_in(&rows, &past, law, spec, &obj, r.head(), scope).contains(r.signer())));
     }
-    let Some(o) = r.of().and_then(|o| p.get(o)) else { return Some(false) };
+    let Some(o) = r.of().and_then(|o| p.get(o)) else { return Some(Ok(false)) };
     if o.win_kind() != Some(WinKind::Open) {
-        return Some(false);
+        return Some(Ok(false));
     }
     if k == WinKind::Answer {
-        return Some(true); // whether its voice counts is read against the roster at the opener's head
+        return Some(Ok(true)); // whether its voice counts is read against the roster at the opener's head
     }
-    let (Some(w), Some(obj)) = (o.window().and_then(windows), o.obj()) else { return Some(false) };
+    let (Some(w), Some(obj)) = (o.window().and_then(windows), o.obj()) else { return Some(Ok(false)) };
     let x = Ctx {
         rows: &rows,
         past: &past,
@@ -538,20 +555,20 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         members_in(&rows, &past, law, spec, &obj, o.head(), &w.concluder)
     };
     if !concluders.contains(r.signer()) {
-        return Some(false);
+        return Some(Ok(false));
     }
     if r.signer() == o.signer() && author_apart(&w) {
-        return Some(false); // out of every count of the window, so no concluder of it
+        return Some(Ok(false)); // out of every count of the window, so no concluder of it
     }
     if k == WinKind::Receipt {
         // a receipt puts no row of the target before the window: none in its past that the opener's past does
         // not hold
-        let Some(t) = o.target_key() else { return Some(true) };
-        return Some(!rows.iter().any(|q| q.signer() == t && q.id() != o.id() && !p.past(q.id(), o.id())));
+        let Some(t) = o.target_key() else { return Some(Ok(true)) };
+        return Some(Ok(!rows.iter().any(|q| q.signer() == t && q.id() != o.id() && !p.past(q.id(), o.id()))));
     }
-    let Some(rec) = r.receipt().and_then(|x| p.get(x)) else { return Some(false) };
+    let Some(rec) = r.receipt().and_then(|x| p.get(x)) else { return Some(Ok(false)) };
     if rec.win_kind() != Some(WinKind::Receipt) || rec.signer() != r.signer() || rec.of() != Some(o.id()) {
-        return Some(false);
+        return Some(Ok(false));
     }
     let answers: Vec<&R> = voices_of(
         unwithdrawn(
@@ -569,7 +586,7 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         _ => false,
     };
     let got = table_outcome(&x, o.target_key(), &answers, &inside, elapsed);
-    Some(r.says().is_some_and(|s| s.as_ref() == got))
+    Some(Ok(r.says().is_some_and(|s| s.as_ref() == got)))
 }
 
 /// The outcome of window `pid` under recount, given which rows count under the cut.
@@ -1056,7 +1073,7 @@ mod tests {
                 conclude(
                     rows.iter(),
                     |p| match rule_with(p, &tables, &law, &NoCut, prefill) {
-                        Some(v) => v,
+                        Some(v) => v.unwrap_or(false),
                         None => seat_rule(p, &law, &NoCut, &|_| true),
                     },
                     None,
