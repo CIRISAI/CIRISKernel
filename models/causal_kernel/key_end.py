@@ -234,23 +234,66 @@ def ends_of(S, k, roster=frozenset()):
     return revs + rots + voids
 
 
-def _own_rows(S, reader):
-    """A reader's own rows: those it signed or cosigned."""
-    return [r for r in S.Cs if r["signer"] == reader or reader in r.get("cosigners", ())]
+def _before(S, rid, e):
+    """THE PLAIN END RULE, limb (a): row rid is in end e's past (and, for an end stating an instant, its own instant
+    before it)."""
+    r = S.by[rid]
+    return rid in S.anc[e["id"]] and not (e.get("ra") is not None and instant(r) is not None and not instant(r) < e["ra"])
 
 
-def stands(S, rid, e, reader=None, final=frozenset()):
+def own_row(S, a, own, roster=frozenset(), voices=None):
+    """THE READER'S OWN ROW, one definition for every reader's line (limb (b) of the end rule, and the line
+    seat/checkpoint.takes_up reads): row `a` (a dict of S) is reader `own`'s where
+        (i)   own signed it itself, concluded or not; or
+        (ii)  it is a CONCLUDED seat row (an offer or an unseat) of which own is a voice by seat.voices (a cosigner,
+              or the signer of a cosign row it names), read with no key view (the key view is (iv)'s);
+        (iii) and never because a row claims own as a cosigner on any other row (a note included: r101 R2);
+        (iv)  each only where own's key stands at it: no `registered` unseat of own by own in its past, and the row
+              in the past of each of own's own ends (ends_of, the plain end rule): a row signed with the reader's key
+              after that key's end is no row of its line (r97 K1).
+    Limb (b) reads these rows per row against each end, with no ordering; any order rule is the person lane's, on
+    top. `voices`: seat.voices by default. MUTATIONS reader_line_unchecked ((iv) unread), own_unconcluded_unread
+    ((i) concluded rows only), own_voice_unread ((ii) unread), own_claimed_cosigner ((iii): any row listing own)."""
+    if a["signer"] == own:
+        mine = bool(S.C.get(a["id"])) or "own_unconcluded_unread" not in MUT
+    elif "own_claimed_cosigner" in MUT:
+        mine = own in a.get("cosigners", ())
+    elif a["kind"] in ("offer", "unseat") and S.C.get(a["id"]) and "own_voice_unread" not in MUT:
+        import seat as _ST
+        vs = voices or _ST.voices
+        P = [q for q in S.Cs if q["id"] in S.anc[a["id"]]]
+        _ST.KEY_VIEW.append(None)
+        try:
+            mine = own in vs(a, P)
+        finally:
+            _ST.KEY_VIEW.pop()
+    else:
+        mine = False
+    if not mine or "reader_line_unchecked" in MUT:
+        return mine
+    if any(S.by[x]["kind"] == "unseat" and S.by[x].get("scope") == "registered" and S.by[x]["signer"] == own
+           and own in S.by[x].get("to", ()) for x in S.anc[a["id"]] if x in S.by):
+        return False
+    return all(_before(S, a["id"], e) for e in ends_of(S, own, roster))
+
+
+def _own_rows(S, reader, roster=frozenset()):
+    """A reader's own rows (own_row)."""
+    return [a for a in S.rows if own_row(S, a, reader, roster)]
+
+
+def stands(S, rid, e, reader=None, final=frozenset(), roster=frozenset()):
     """Row `rid` stands against end `e` (A KEY END IS A CUT, the Constitution's ruling): (a) it is in e's past (and,
     for an end stating an instant, its own instant before it); or (b) it is on the reader's own line from before the
     reader held e: a row the reader signed or cosigned is it, or has it in its past, without e there (taken up;
     MUTATION taken_up_unread); or (c) it is part of a count FINAL BY ACKNOWLEDGEMENT (final: the counts with n - t + 1
     clean receipts, seat.final_by_ack): that count, or a row it names (MUTATION final_count_unread). A final act is
     not reopened by a later cut."""
-    r = S.by[rid]
-    if rid in S.anc[e["id"]] and not (e.get("ra") is not None and instant(r) is not None and not instant(r) < e["ra"]):
+    if _before(S, rid, e):
         return True
     if reader is not None and "taken_up_unread" not in MUT and any(
-            (a["id"] == rid or rid in S.anc[a["id"]]) and e["id"] not in S.anc[a["id"]] for a in _own_rows(S, reader)):
+            (a["id"] == rid or rid in S.anc[a["id"]]) and e["id"] not in S.anc[a["id"]]
+            for a in _own_rows(S, reader, roster)):
         return True
     # (c) protects only a voice valid when cast: never one whose end is in the final count's own past (MUTATION
     # final_protects_late)
@@ -289,7 +332,7 @@ def counts_by(S, rid, k, reader=None, final=frozenset(), roster=frozenset()):
     revocation names the key's last rows."""
     r = S.by.get(rid)
     if r is None or not S.C.get(rid): return False
-    return all(stands(S, rid, e, reader, final) for e in ends_of(S, k, roster))
+    return all(stands(S, rid, e, reader, final, roster) for e in ends_of(S, k, roster))
 
 
 def _wire_seat():

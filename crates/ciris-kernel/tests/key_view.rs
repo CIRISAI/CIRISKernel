@@ -5,7 +5,7 @@
 
 mod common;
 use ciris_kernel::cut::CutSpec;
-use ciris_kernel::key_end::{conclude_rule, counts_by, counts_for, KeyEndRow, KeyReading, KeyView};
+use ciris_kernel::key_end::{conclude_rule, counts_by, counts_for, successor, KeyEndRow, KeyReading, KeyView};
 use ciris_kernel::layers::{conclude, kept, Concluded, Past};
 use ciris_kernel::seat::{final_by_ack, seat_rule, self_roster_ends, voices_with, Obj, SeatLaw, Seats};
 use ciris_kernel::window::{self, WindowSpec};
@@ -150,6 +150,24 @@ fn key_view_cases() {
         }
     }
     // reader-level answers after the two passes (ROSTER_DIRECT)
+    // the successor of a key with the self roster's acts: a voided rotation names none (key_end.successor)
+    for d in fx.at("successor").arr() {
+        let refs: BTreeMap<String, String> =
+            d.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let all = rows_with_refs(d.at("rows").arr(), &refs);
+        let seat_ids: BTreeSet<String> = d.at("seat").strs().into_iter().collect();
+        let seat_rows: Vec<TRow> = all.iter().filter(|r| seat_ids.contains(&r.id)).cloned().collect();
+        let kc = conclude(kept(&all, |_| true), conclude_rule, None);
+        let plain = KeyCut { kv: None };
+        let c0 = conclude_rows(&seat_rows, false, &windows, &law, &plain);
+        let roster = self_roster_ends(&c0, &law, &plain);
+        let got = successor(&kc, &d.at("key").s().to_string(), None, &roster);
+        cases += 1;
+        if got != d.at("want").opt_s() {
+            bad += 1;
+            eprintln!("{}: successor = {got:?}", d.at("name").s());
+        }
+    }
     for d in fx.at("roster_direct").arr() {
         let refs: BTreeMap<String, String> =
             d.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();

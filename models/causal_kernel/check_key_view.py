@@ -292,7 +292,27 @@ DIRECT = [
 # reader-level answers of counts_by after the two passes (roster acts, finality): (name, seat rows, key rows, row, key,
 # reader, expected)
 TAT = KE.att("aT", "T", 3, "kT", about="X")                    # the rotated-to key T's own row
+KREV = lambda i, k, ra, names: CK.row(i, "revoke", k, tuple(names), key=k, ra=ra)   # a key's own revocation, naming rows
+KK = [KE.rec("kN", "N", 0, None, typ="pseudonym"), KE.att("aN", "N", 2, "kN"), KREV("rvN", "N", 3, ("kN",)),
+      KE.att("nt", "N", 2, "kN", names=("aN",))]                                  # K1: a thief's row and its note as N
+KH = [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.rec("kF", "F", 0, None, typ="pseudonym"),
+      KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)), KE.att("rF", "F", 2, "kF", names=("aT",)),
+      KREV("rvF", "F", 5, ("rF",))]                                              # an honest note, its key ended later
+KR2 = [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
+       CK.row("nx", "note", "X", ("aT",), cosigners=("F",))]                   # R2: X's note claims F as a cosigner
+KUN = [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
+       KE.att("rF", "F", 2, "kT", names=("aT",))]                              # F's own row, concluding nothing
+KCO = [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
+       ST.cosign("cF", "F", "x"), ST.offer("x", "Z", ("Z",), "member", "@", "self", ("cF", "aT"))]   # F a voice of x
 ROSTER_DIRECT = [
+    ("own_row (iii), r101 R2: another key's note claiming the reader as a cosigner is no row of the reader's line",
+     [], KR2, "aT", "T", "F", False),
+    ("own_row (i): a row the reader signed takes the row up though it concluded nothing", [], KUN, "aT", "T", "F", True),
+    ("own_row (ii): a concluded offer the reader is a voice of through its cosign row (the cosign naming nothing) "
+     "takes the row up", [], KCO, "aT", "T", "F", True),
+    ("r97 K1: a thief holding the reader's key signs a note as the reader naming its own row, after the key's end: the "
+     "note is no row of the reader's line, and the row counts nothing", [], KK, "aN", "N", "N", False),
+    ("an honest note the reader signed before its own key's end still takes the row up", [], KH, "aT", "T", "F", True),
     ("edge (3): a voided rotation's rows by the rotated-to key fall by the cut rule: T's row aT, not in the void's past, "
      "counts nothing", CH.ROOM + SP + recs() + [KT, QT0, TAT, VOID("vT", ("P1", "P2"), "qT")], [], "aT", "T", None, False),
     ("and stands for F, which took it up before the void", CH.ROOM + SP + recs() + [KT, QT0, TAT, rack("rF", "F", ("aT",)),
@@ -357,10 +377,17 @@ def answer(rule, seat_rows, key_rows, view):
         ST.KEY_VIEW.pop()
 
 
+# the successor of a key with the self roster's acts (name, seat rows, key rows, key, expected)
+SUCCESSOR = [
+    ("a rotation the self roster voided names no successor", CH.ROOM + SP + recs() + [KT, QT0, VOID("vT", ("P1", "P2"), "qT")],
+     [], "C", None),
+    ("the same rotation, not voided, names its key", CH.ROOM + SP + recs() + [KT, QT0], [], "C", "T"),
+]
 PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("window_key_view_unread", ST.MUT),
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
-          ("taken_up_unread", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("own_unconcluded_unread", KE.MUT),
+          ("own_voice_unread", KE.MUT), ("own_claimed_cosigner", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries
@@ -380,6 +407,10 @@ def run():
     for name, sr, kr, rid, k, reader, want in ROSTER_DIRECT:
         KS, roster, final = plain(sr, kr, RULE)
         got = KE.counts_by(KS, rid, k, reader, final, roster)
+        if got != want: bad.append("%s: got %s" % (name, got))
+    for name, sr, kr, k, want in SUCCESSOR:
+        KS, roster, final = plain(sr, kr, RULE)
+        got = KE.successor(KS, k, None, roster)
         if got != want: bad.append("%s: got %s" % (name, got))
     for name, rows, rid, k, fin, want in DIRECT:
         got = KE.counts_by(KE.state(rows), rid, k, None, frozenset(fin))
@@ -430,7 +461,7 @@ def main():
         if not hit: missed.append(p)
     ok = not bad and not missed
     print("RESULT: %s: %d cases, %d of %d planted breaks caught" % ("ok" if ok else "%d problems" % (len(bad) + len(missed)),
-                                                                   len(CASES) + len(LONE) + len(CUT) + len(DIRECT) + len(ROSTER_DIRECT), len(PLANTS) - len(missed), len(PLANTS)))
+                                                                   len(CASES) + len(LONE) + len(CUT) + len(DIRECT) + len(ROSTER_DIRECT) + len(SUCCESSOR), len(PLANTS) - len(missed), len(PLANTS)))
     return 0 if ok else 1
 
 
