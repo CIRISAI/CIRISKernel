@@ -269,3 +269,57 @@ fn the_tables_give_the_models_seat_law() {
     assert!(cases > 20, "{cases} cases");
     assert_eq!(bad, 0, "{bad} of {cases} differ");
 }
+
+// ---- the act binding (`window::rule_bound`, `window::outcome_bound`, fixture `window_bound.json`) -------------------
+#[test]
+fn bound_openers_take_the_models_tables() {
+    use ciris_kernel::layers::{conclude, kept};
+    use ciris_kernel::seat::seat_rule;
+    use ciris_kernel::window::{outcome_bound, rule_bound, Outcome};
+    let fx = fixture("window_bound.json");
+    let law = law_of(fx.at("law"));
+    let table = table_of(fx.at("table"));
+    let rows: BTreeMap<String, PolicyRow> =
+        fx.at("families").arr().iter().map(|f| (f.at("family").s().to_string(), row_of(f))).collect();
+    let families = |fam: &str, _obj: &ciris_kernel::seat::Obj<String, String>| -> Option<WindowSpec<i64>> {
+        let row = rows.get(fam)?;
+        let active = (row.base == "active").then_some(Active::WithinK);
+        spec_from_policy(row, &table, active).ok()
+    };
+    let none = |_: &String| -> Option<WindowSpec<i64>> { None };
+    let spec = DictCut;
+    let (mut cases, mut bad) = (0usize, 0usize);
+    for c in fx.at("cases").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rs = rows_with_refs(c.at("rows").arr(), &refs);
+        let got = conclude(
+            kept(&rs, |_| true),
+            |p| match rule_bound(p, &families, &none, &law, &spec) {
+                Some(v) => v,
+                None => seat_rule(p, &law, &spec, &|_| true),
+            },
+            None,
+        );
+        let ids: Vec<String> = got.g.rows().iter().map(|r| r.id.clone()).collect();
+        let cs: Vec<bool> = (0..ids.len()).map(|i| got.concluded(i)).collect();
+        let want_c: Vec<bool> = c.at("c").arr().iter().map(|x| x.b()).collect();
+        let o = match got.g.idx(&"p".to_string()) {
+            Some(pi) => match outcome_bound(&got, pi, &families, &none, &law, &spec, &|_| true) {
+                Outcome::None => "none".to_string(),
+                Outcome::Open => "open".into(),
+                Outcome::Contested => "contested".into(),
+                Outcome::Landed(s) => s,
+            },
+            None => "none".into(),
+        };
+        cases += 1;
+        if ids != c.at("kept").strs() || cs != want_c || o != c.at("outcome").s() {
+            bad += 1;
+            eprintln!("{}: crate {o}, {cs:?}", c.at("name").s());
+        }
+    }
+    report("window_bound", cases, bad);
+    assert!(cases > 40, "{cases} cases");
+    assert_eq!(bad, 0, "{bad} of {cases} differ");
+}

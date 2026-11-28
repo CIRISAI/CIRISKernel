@@ -246,7 +246,13 @@ protocol), `acts` (every word read by its `from_word`; an unknown word, a second
 a policy with no row is refused) and `removal_floor` (`community_remove`'s floor voices). The rest of `SeatLaw`
 (duties, holds, confers, ends, final scopes, roster seats, depth, kinds) is the text's and stays the caller's. The
 acts table names the window acts (`moderation_fallback`, `halt_confirm`, `poll`), but in this tag nothing reads that
-binding for a window: `window::rule` takes the opener's `window()` name through the caller's lookup.
+binding for a window unless the caller asks: `window::rule` and `window::outcome` take the opener's `window()` name
+through the caller's lookup, as before. `window::rule_bound` and `window::outcome_bound` take the table through the
+binding where the law carries one (`law.acts`): the act the opener proposes (`WindowRow::proposes`, an act and its
+scope class) over its object's kind gives the policy row (`window::bound_family`; a `fixed` row its one family, and
+an opener stating another concludes nothing; a `row` row the policy the opener states), and the caller's
+`Families` closure gives that family's table (built with `spec_from_policy`, `active` per room). An opener bound to
+no family, or to one that gives no table, concludes nothing. The window name is then not read.
 
 ## Points to settle before adoption
 

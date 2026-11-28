@@ -332,6 +332,79 @@ def dump():
             "families": out}
 
 
+# ---- the act binding: an opener's table through the acts table ------------------------------------------------------
+def families(fam, obj):
+    """A family's table from its row (window.FAMILIES): the base `active` read within k."""
+    row = TABLE.get(fam)
+    if row is None: return None
+    try:
+        return WN.spec_from_policy(row, POL, "within_k" if row["base"] == "active" else None)
+    except WN.PolicyRefusal:
+        return None
+
+
+def bind(p, act, scope, **kw):
+    """Opener p proposing (act, scope), under a window name no table has: the binding alone gives its table."""
+    return dict(p, proposes=(act, scope), window="unbound", **kw)
+
+
+def bound_cases():
+    """(name, rows, the by-name rows or None, the outcome the binding must give or None): the self roster's lone
+    paths with their openers bound (each must give what the by-name table gives), and a room's openers bound to a
+    family that gives a table, to one that does not, and to none."""
+    out = []
+    for world, act in ((WN.self_world, "remove"), (WN.add_world, "admit")):
+        _, cases = world()
+        for case, rows, _, _ in cases:
+            out.append(("bound, %s: %s" % (act, case), [bind(r, act, "key") if r["id"] == "p" and r["kind"] == "open" else r
+                                                         for r in rows], rows, None))
+    ST = WN.ST
+    m = ST.offer("g", "m1", ("m1", "m2", "m3"), "member", "@", "self", cosigners=("m2", "m3"))
+    op = WN.opener("p", "m1", "x", "g", ("g",))
+    a = lambda i, who: WN.answer(i, who, "p", "approve")
+    W = TABLE["default_content"]["window_secs"]
+    out += [
+        ("a room's content change, two of three approve: strictly more than 2/3 needs three",
+         [m, bind(op, "change", "content"), a("a2", "m2")], None, "open"),
+        ("a room's content change, three of three approve", [m, bind(op, "change", "content"), a("a2", "m2"), a("a3", "m3")],
+         None, "landed"),
+        ("a room's content change, two of three approve and a member lands the floor at the close",
+         [m, bind(op, "change", "content"), a("a2", "m2"), WN.receipt("r", "m2", "p", 0),
+          WN.landing("L", "m2", "p", "r", "landed", W, ("a2",))], None, "landed"),
+        ("a room's content change, the proposer alone and a member lands at the close: the floor is two voices",
+         [m, bind(op, "change", "content"), WN.receipt("r", "m2", "p", 0), WN.landing("L", "m2", "p", "r", "landed", W)],
+         None, "open"),
+        ("an opener that proposes nothing is bound to no family", [m, dict(op, window="unbound"), a("a2", "m2")], None, "none"),
+        ("an opener the name alone would bind: the binding reads no name",
+         [m, dict(op, window="default_content@active"), a("a2", "m2"), a("a3", "m3")], None, "none"),
+        ("a removal's opener: community_remove is a counted row, no window", [m, bind(op, "remove", "member")], None, "none"),
+        ("an admission stating community_invite, two of three approve", [m, bind(op, "admit", "member", policy="community_invite"),
+                                                                          a("a2", "m2")], None, "open"),
+        ("an admission stating community_invite, three of three approve",
+         [m, bind(op, "admit", "member", policy="community_invite"), a("a2", "m2"), a("a3", "m3")], None, "landed"),
+        ("an admission stating cosigned_act: a counted row, no window",
+         [m, bind(op, "admit", "member", policy="cosigned_act"), a("a2", "m2"), a("a3", "m3")], None, "none"),
+        ("an admission stating no policy, where the row chooses", [m, bind(op, "admit", "member"), a("a2", "m2"), a("a3", "m3")],
+         None, "none"),
+        ("a content change stating another policy than the fixed one",
+         [m, bind(op, "change", "content", policy="default_standing"), a("a2", "m2"), a("a3", "m3")], None, "none"),
+        ("a record change: two counts at once is no window", [m, bind(op, "record_change", "record"), a("a2", "m2")], None, "none"),
+        ("an act the acts table has no row for over a room", [m, bind(op, "halt_confirm", "halt"), a("a2", "m2")], None, "none"),
+    ]
+    return out
+
+
+def run_bound(rows):
+    saved = WN.FAMILIES
+    WN.FAMILIES = families
+    try:
+        with WN.ST.binding(True):
+            S = CK.concluded(CK.kept(list(rows)), WN.rule)
+            return {r["id"]: bool(S.C.get(r["id"])) for r in S.rows}, WN.outcome(S, "p", "recount")
+    finally:
+        WN.FAMILIES = saved
+
+
 # ---- plants: one cell changed, read in one row ---------------------------------------------------------
 def _set(row, path, v):
     row = copy.deepcopy(row)
@@ -467,6 +540,21 @@ def main():
     print("\n  the differences, and the side the table supports:")
     for name, why in DIFFERS.items():
         print("    %s: %s" % (name, why))
+    print("\nPart 4. the act binding (window.FAMILIES, the acts table)")
+    nb = 0
+    for name, rows, ref, want in bound_cases():
+        got = run_bound(rows)
+        if ref is not None:
+            S = CK.concluded(CK.kept(list(ref)), WN.rule)
+            exp = WN.outcome(S, "p", "recount")
+            ok = got[1] == exp
+        else:
+            exp, ok = want, got[1] == want
+        nb += 1
+        if not ok:
+            problems.append("bound: %s: %s, want %s" % (name, got[1], exp))
+            print("  %s: %s, WANT %s" % (name, got[1], exp))
+    print("  %d bound cases" % nb)
     print("\nPart 3. plants")
     caught, out = run_plants()
     for cell, fam, v, hit in out:

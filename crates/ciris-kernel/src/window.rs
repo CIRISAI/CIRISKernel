@@ -38,7 +38,8 @@ use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
 use crate::ops;
 use crate::seat::{
-    self, members_in, members_in_scopes, persons, seat_rule, Obj, Policy, SeatKind, SeatLaw, SeatRow, AGENT,
+    self, members_in, members_in_scopes, persons, seat_rule, Act, Choice, Obj, Policy, ScopeClass, SeatKind, SeatLaw,
+    SeatRow, AGENT,
 };
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -85,6 +86,11 @@ pub trait WindowRow: SeatRow {
     }
     /// A receipt or a landing: the signer's own instant.
     fn at(&self) -> Option<Self::T> {
+        None
+    }
+    /// An opener: the act it proposes, and the act's scope class (a lone eviction of a key: `remove`, `key`). Read
+    /// only where the law binds acts ([`rule_bound`]): the acts table then names the policy row the window is of.
+    fn proposes(&self) -> Option<(Act, ScopeClass)> {
         None
     }
 }
@@ -190,6 +196,47 @@ type ObjOf<R> = Obj<<R as Row>::Id, <R as Row>::Key>;
 
 /// The window tables, looked up by an opener's window name.
 pub type Tables<'w, R> = dyn Fn(&<R as SeatRow>::Word) -> Option<WindowSpec<<R as WindowRow>::T>> + 'w;
+
+/// The window table of a policy row, by family, for an opener over an object: what the acts table binds (the caller
+/// builds each with [`spec_from_policy`]; the object, for the base `active` of its room).
+pub type Families<'w, R> = dyn Fn(&str, &ObjOf<R>) -> Option<WindowSpec<<R as WindowRow>::T>> + 'w;
+
+/// The family the acts table binds an opener to: the act it [`WindowRow::proposes`] over its object's kind, through
+/// [`seat::policy_for`]. A `fixed` row names one family, and an opener that states another policy is bound to none; a
+/// `row` row takes the policy the opener states, if it is one the act may take. A family of `&` (several counts at
+/// once) is no window.
+pub fn bound_family<'r, R: WindowRow + 'r>(
+    law: &'r SeatLaw,
+    get: &dyn Fn(&R::Id) -> Option<&'r R>,
+    o: &'r R,
+) -> Option<&'r str> {
+    let obj = o.obj()?;
+    let kind = seat::kind_of(law, get, &obj)?;
+    let (act, sc) = o.proposes()?;
+    let (pols, choice) = seat::policy_for(law, act, sc, kind)?;
+    let stated = o.policy().map(|w| w.as_ref());
+    let name = match choice {
+        Choice::Fixed if pols.len() == 1 && stated.is_none_or(|s| s == pols[0]) => pols[0].as_str(),
+        Choice::Row => pols.iter().map(|p| p.as_str()).find(|p| Some(*p) == stated)?,
+        _ => return None,
+    };
+    (!name.contains('&')).then_some(name)
+}
+
+/// An opener's table: where the law binds acts and the caller gives the families, the family the acts table binds it
+/// to ([`bound_family`]); otherwise the table its window name names.
+fn table_of<'r, R: WindowRow + 'r>(
+    o: &'r R,
+    get: &dyn Fn(&R::Id) -> Option<&'r R>,
+    law: &'r SeatLaw,
+    windows: &Tables<'_, R>,
+    families: Option<&Families<'_, R>>,
+) -> Option<WindowSpec<R::T>> {
+    match (families, &law.acts) {
+        (Some(f), Some(_)) => f(bound_family(law, get, o)?, &o.obj()?),
+        _ => o.window().and_then(windows),
+    }
+}
 
 struct Ctx<'x, R: WindowRow, S: CutSpec<R>> {
     rows: &'x [&'x R],
@@ -483,7 +530,20 @@ pub fn rule<R: WindowRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,
 ) -> Option<bool> {
-    rule_with(p, windows, law, spec, true)
+    rule_with(p, windows, None, law, spec, true)
+}
+
+/// [`rule`], with each opener's table taken through the act binding where the law carries one (`law.acts`): the
+/// policy row the acts table binds the act the opener proposes to, from `families` ([`bound_family`]); an opener
+/// bound to no family concludes nothing. Where the law binds no act, the opener's window name, as [`rule`].
+pub fn rule_bound<R: WindowRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    families: &Families<'_, R>,
+    windows: &Tables<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+) -> Option<bool> {
+    rule_with(p, windows, Some(families), law, spec, true)
 }
 
 /// [`rule`], with every scope the table reads walked at once (`prefill`) or each read when first asked (the
@@ -491,6 +551,7 @@ pub fn rule<R: WindowRow, S: CutSpec<R>>(
 fn rule_with<R: WindowRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     windows: &Tables<'_, R>,
+    families: Option<&Families<'_, R>>,
     law: &SeatLaw,
     spec: &S,
     prefill: bool,
@@ -500,7 +561,8 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
     let rows: Vec<&R> = p.rows().collect();
     let past = |a: &R::Id, b: &R::Id| p.past(a, b);
     if k == WinKind::Open {
-        let (Some(w), Some(obj)) = (r.window().and_then(windows), r.obj()) else { return Some(false) };
+        let get = |i: &R::Id| p.get(i);
+        let (Some(w), Some(obj)) = (table_of(r, &get, law, windows, families), r.obj()) else { return Some(false) };
         // an act that opens its own window is validly made by the seat's rule too
         if matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && !seat_rule(p, law, spec, &|_| true) {
             return Some(false);
@@ -521,7 +583,8 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
     if k == WinKind::Answer {
         return Some(true); // whether its voice counts is read against the roster at the opener's head
     }
-    let (Some(w), Some(obj)) = (o.window().and_then(windows), o.obj()) else { return Some(false) };
+    let get = |i: &R::Id| p.get(i);
+    let (Some(w), Some(obj)) = (table_of(o, &get, law, windows, families), o.obj()) else { return Some(false) };
     let x = Ctx {
         rows: &rows,
         past: &past,
@@ -582,13 +645,28 @@ pub fn outcome<R: WindowRow, S: CutSpec<R>>(
     spec: &S,
     cut_counts: &dyn Fn(usize) -> bool,
 ) -> Outcome {
-    outcome_with(c, pid, windows, law, spec, cut_counts, true)
+    outcome_with(c, pid, windows, None, law, spec, cut_counts, true)
 }
 
+/// [`outcome`], with the opener's table taken through the act binding as [`rule_bound`] takes it.
+pub fn outcome_bound<R: WindowRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    pid: usize,
+    families: &Families<'_, R>,
+    windows: &Tables<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    cut_counts: &dyn Fn(usize) -> bool,
+) -> Outcome {
+    outcome_with(c, pid, windows, Some(families), law, spec, cut_counts, true)
+}
+
+#[allow(clippy::too_many_arguments)]
 fn outcome_with<R: WindowRow, S: CutSpec<R>>(
     c: &Concluded<'_, R>,
     pid: usize,
     windows: &Tables<'_, R>,
+    families: Option<&Families<'_, R>>,
     law: &SeatLaw,
     spec: &S,
     cut_counts: &dyn Fn(usize) -> bool,
@@ -599,7 +677,8 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
         return Outcome::None;
     }
     let p = g.row(pid);
-    let (Some(w), Some(obj)) = (p.window().and_then(windows), p.obj()) else { return Outcome::None };
+    let get = |i: &R::Id| g.idx(i).map(|x| g.row(x));
+    let (Some(w), Some(obj)) = (table_of(p, &get, law, windows, families), p.obj()) else { return Outcome::None };
     let ls: Vec<usize> = c
         .cs()
         .iter()
@@ -1438,7 +1517,7 @@ mod tests {
             let concl = |prefill: bool| {
                 conclude(
                     rows.iter(),
-                    |p| match rule_with(p, &tables, &law, &NoCut, prefill) {
+                    |p| match rule_with(p, &tables, None, &law, &NoCut, prefill) {
                         Some(v) => v,
                         None => seat_rule(p, &law, &NoCut, &|_| true),
                     },
@@ -1449,8 +1528,8 @@ mod tests {
             cases += 1;
             bad += (a.all() != b.all()) as usize;
             let op = a.g.idx(&200).unwrap();
-            let oa = outcome_with(&a, op, &tables, &law, &NoCut, &|_| true, true);
-            let ob = outcome_with(&a, op, &tables, &law, &NoCut, &|_| true, false);
+            let oa = outcome_with(&a, op, &tables, None, &law, &NoCut, &|_| true, true);
+            let ob = outcome_with(&a, op, &tables, None, &law, &NoCut, &|_| true, false);
             landed += matches!(oa, Outcome::Landed(_)) as usize;
             cases += 1;
             bad += (oa != ob) as usize;

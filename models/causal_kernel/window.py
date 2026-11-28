@@ -319,6 +319,36 @@ def spec_from_policy(row, table=None, active=None):
             "target_votes": tv, "secs": row["window_secs"]}
 
 
+# ---- the act binding: an opener's table through the acts table ------------------------------------------------------
+FAMILIES = None    # set by a caller: (family, obj) -> the family's table (spec_from_policy); read with the binding on
+
+
+def bound_family(p, by):
+    """The family the acts table binds opener p to: the act it proposes (`proposes`: act, scope class) over its
+    object's kind (seat.policy_for). A `fixed` row names one family, and an opener stating another policy is bound to
+    none; a `row` row takes the policy the opener states, if the act may take it. A family of `&` is no window."""
+    kind = ST.kind_of(by, p.get("obj"))
+    pr = p.get("proposes")
+    if kind is None or pr is None: return None
+    got = ST.policy_for(pr[0], pr[1], kind)
+    if got is None: return None
+    pols, choice = got
+    stated = p.get("policy")
+    if choice == "fixed" and len(pols) == 1 and stated in (None, pols[0]): name = pols[0]
+    elif choice == "row" and stated in pols: name = stated
+    else: return None
+    return None if "&" in name else name
+
+
+def spec_of(p, P):
+    """An opener's table: with FAMILIES set and the binding on (seat.BOUND), the family the acts table binds it to;
+    otherwise the table its window name names."""
+    if FAMILIES is not None and ST.BOUND:
+        fam = bound_family(p, {q["id"]: q for q in P})
+        return FAMILIES(fam, p["obj"]) if fam is not None else None
+    return WINDOWS.get(p.get("window"))
+
+
 def is_opener(r):
     """A row that opens a window: an `open` row, or a counted act that names a window."""
     return r["kind"] == "open" or (r["kind"] == "unseat" and r.get("window") in WINDOWS)
@@ -398,8 +428,8 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
     return spec["default"]
 
 
-def _base(rows, past, p):
-    spec = WINDOWS[p["window"]]
+def _base(rows, past, p, spec=None):
+    spec = spec if spec is not None else WINDOWS[p["window"]]
     cache = {}
     def base(name):
         if name not in cache:
@@ -424,10 +454,12 @@ def _base(rows, past, p):
     return base
 
 
-def elapsed(landing_, rec, p):
-    """The concluder's own two instants span the window. With either instant missing it has not elapsed."""
+def elapsed(landing_, rec, p, spec=None):
+    """The concluder's own two instants span the window. With either instant missing it has not elapsed. A table built
+    from its row carries its own length (`secs`)."""
     a, b = landing_.get("at"), rec.get("at")
-    return a is not None and b is not None and a - b >= secs(p["window"])
+    n = spec["secs"] if spec is not None and "secs" in spec else secs(p["window"])
+    return a is not None and b is not None and a - b >= n
 
 
 def ballot_words(spec):
@@ -477,7 +509,8 @@ def rule(r, P, past):
         return ST.seat_rule(r, P, past)
     by = {q["id"]: q for q in P}
     if is_opener(r):
-        w = WINDOWS[r["window"]]                               # the opener's signer holds the opener's scope, by default the counted one
+        w = spec_of(r, P)                                      # the opener's signer holds the opener's scope, by default the counted one
+        if w is None: return False
         if k != "open" and not ST.seat_rule(r, P, past): return False     # an act that opens its own window: validly made, by the seat
         # an opening names the newest counted changes over its object in its own past, and is counted there (H1;
         # MUTATION window_opener_old_head: an opening at an older head is read there)
@@ -487,7 +520,9 @@ def rule(r, P, past):
     p = by.get(r["of"])
     if p is None or not is_opener(p): return False
     if k == "answer": return True                              # whether its voice counts is read against the roster at p's head
-    spec, base = WINDOWS[p["window"]], _base(P, past, p)
+    spec = spec_of(p, P)
+    if spec is None: return False
+    base = _base(P, past, p, spec)
     if r["signer"] not in ST.members_at(P, past, p["obj"], p["head"], spec["concluder"]): return False
     if r["signer"] == p["signer"] and author_apart(spec): return False     # out of every count, so no concluder of it
     if k == "receipt":
@@ -498,7 +533,7 @@ def rule(r, P, past):
     if rec is None or rec["kind"] != "receipt" or rec["signer"] != r["signer"] or rec["of"] != p["id"]: return False
     answers = voices_of(unwithdrawn(spec, K.sel(P, kind="answer", of=p["id"]), P), p, past)
     inside = [q for q in P if q["id"] != rec["id"] and not past(q["id"], rec["id"])]
-    return r["says"] == table_outcome(spec, p, answers, inside, base, elapsed(r, rec, p))
+    return r["says"] == table_outcome(spec, p, answers, inside, base, elapsed(r, rec, p, spec))
 
 
 # ---- derived: the outcome of a window under each rule ----------------------------------------------------
@@ -506,7 +541,8 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
     """how: void | contest | recount. Returns the outcome, "open" (no landing counts yet) or "contested"."""
     p = S.by.get(pid)
     if p is None or not S.C.get(pid): return "none"
-    spec = WINDOWS[p["window"]]
+    spec = spec_of(p, S.Cs)
+    if spec is None: return "none"
     Ls = K.sel(S.Cs, kind="landing", of=pid)
     if not Ls and "landing_only" in MUT: return "open"
     if Ls and how == "void":
@@ -516,7 +552,7 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
         if "contested" in st.values() or not said: return "contested"
         return K.group(said, None, "one", "v") or "contested"
     past = lambda a, b: a in S.anc[b]
-    base = _base(S.Cs, past, p)
+    base = _base(S.Cs, past, p, spec)
     pos = {r["id"]: i for i, r in enumerate(S.rows)}
     late = lambda r: False
     if how == "recount" or not Ls:
@@ -565,7 +601,7 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
             # (MUTATION withdrawal_not_recounted: only the landing's own past is read for withdrawals)
             wrows = mine + ([] if "withdrawal_not_recounted" in MUT else conc)
             heard = unwithdrawn(spec, K.sel(mine, kind="answer", of=pid) + ans, wrows)
-            again = table_outcome(spec, p, voices_of(heard, p, past), inside, base, elapsed(L, rec, p))
+            again = table_outcome(spec, p, voices_of(heard, p, past), inside, base, elapsed(L, rec, p, spec))
             said.append({"v": L["says"] if again == L["says"] else "contested"})
     if how == "recount" and any(x["v"] != "contested" for x in said):
         said = [x for x in said if x["v"] != "contested"]       # a landing that does not stand is no voice against one that does

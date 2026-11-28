@@ -599,6 +599,10 @@ impl WindowRow for TRow {
             None
         }
     }
+    fn proposes(&self) -> Option<(ciris_kernel::seat::Act, ciris_kernel::seat::ScopeClass)> {
+        let a = self.m.get("proposes")?.arr();
+        Some((ciris_kernel::seat::Act::from_word(a[0].s())?, ciris_kernel::seat::ScopeClass::from_word(a[1].s())?))
+    }
     fn says(&self) -> Option<&String> {
         self.says.as_ref()
     }

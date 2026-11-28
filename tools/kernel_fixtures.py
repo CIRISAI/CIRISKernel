@@ -853,6 +853,25 @@ def law_tables_cases():
     return {"source": "data/governance_policy_acts.tsv and data/governance_policy.json", "cases": out}
 
 
+# ---- window_bound: an opener's table through the act binding ------------------------------------------------------
+def window_bound_cases():
+    import seat as ST
+    import check_policy_spec as PS
+    with ST.binding(True):
+        law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+               "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+               "removal_floor": ST.REMOVAL_FLOOR, "policy": {k: list(v) for k, v in ST.POLICY.items()},
+               "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+        cases = []
+        for name, rows, _, _ in PS.bound_cases():
+            c, o = PS.run_bound(rows)
+            refs = {}
+            cases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "c": [c[r["id"]] for r in rows if r["id"] in c],
+                          "kept": [i for i in c], "outcome": o})
+    return {"law": law, "families": PS.POL["families"],
+            "table": {"min_count": PS.POL["min_count"], "window_classes": PS.POL["window_classes"]}, "cases": cases}
+
+
 def main():
     out = {}
     dump("lib.json", lib_cases(), out)
@@ -874,6 +893,7 @@ def main():
     dump("acts.json", acts_cases(), out)
     dump("policy_spec.json", policy_spec_cases(), out)
     dump("law_tables.json", law_tables_cases(), out)
+    dump("window_bound.json", window_bound_cases(), out)
     import check_policy_spec as PS
     dump("../vectors/policy_dump.json", PS.dump(), out)
     import conferral_end as CE
