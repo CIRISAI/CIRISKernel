@@ -347,7 +347,8 @@ PLANTS = [(("undecided_defaulted",), "undecided"), (("pinned_unread",), "pinned_
           (("follows_any_ref",), "custody_by_cites_is_not_named"),
           (("cites_any_family",), "duty_cites_its_permission_and_more"),
           (("binding_by_family",), "ownership_mirror_cites_a_non_binding"),
-          (("no_person_is_anyone",), "key_of_no_person_carries_nothing")]
+          (("no_person_is_anyone",), "key_of_no_person_carries_nothing"),
+          (("follows_unconcluded",), "custody_follows_an_unconcluded_row")]
 
 
 def generated():
@@ -460,6 +461,11 @@ FOLLOWS_CASES = [
      [row("b", "file:blob", "community", room="r1"),
       dict(row("c", "custody:blob", "community", room="r1", names=["b"]), evidence="b")],
      {"b": P("targeted_room", ROOM), "c": P("targeted_room", ROOM)}),
+    ("custody_follows_an_unconcluded_row", "a custody row of a blob row that concludes nothing (it was refused at "
+     "the door's rule), placed at the commons: the followed row is not held as a conclusion, refused",
+     [row("b", "file:blob", "federation", concluded=False),
+      dict(row("c", "custody:blob", "federation", names=["b"]), evidence="b")],
+     {"b": P("commons", AU.EVERYONE), "c": REF("follows_not_held")}),
     ("custody_wider_than_its_content", "a custody row at the commons of a blob placed in r1: refused",
      [row("b", "file:blob", "community", room="r1"),
       dict(row("c", "custody:blob", "federation", names=["b"]), evidence="b")],

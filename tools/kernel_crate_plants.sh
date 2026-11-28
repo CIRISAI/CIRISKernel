@@ -1034,6 +1034,7 @@ plant "narrower read by keys, not persons"            src/audience.rs 'a.iter().
 plant "a cited row of any family is followed"         src/audience.rs 'FollowsRef::Cites(of) => family_of(x.family()).is_some_and(|f| of.contains(&f.0)),' 'FollowsRef::Cites(_) => true,'
 plant "an owner binding by family alone"              src/seat.rs 'family == OWNER_BINDING_FAMILY && purpose == Some("owner_binding")' 'family == OWNER_BINDING_FAMILY && purpose.is_some_and(|_| true) || family == OWNER_BINDING_FAMILY'
 plant "a key of no person read as its own person"    src/audience.rs 'k == of || (person.voice)(of).is_some_and(|p| (person.voice)(k) == Some(p))' 'k == of || (person.voice)(of).is_some_and(|p| (person.voice)(k).is_none_or(|q| q == p))'
+plant "a follows row follows an unconcluded row"      src/audience.rs '.filter(|f| by.get(*f).is_some_and(|x| x.concluded()))' '.filter(|f| by.get(*f).is_some())'
 plant "a tie takes the first pattern"                 src/audience.rs 'Some((b, _)) if k == b => tie = true,' 'Some((b, _)) if k == b => {}'
 plant "the first matching family pattern decides"       src/audience.rs 'Some((b, _)) if k < b => {}' 'Some(_) => {}'
 plant "a duty seat seats an outsider"                 src/audience.rs 'let duty = DUTY_SEAT_FAMILIES.contains(&fam);' 'let duty = false && DUTY_SEAT_FAMILIES.contains(&fam);'
