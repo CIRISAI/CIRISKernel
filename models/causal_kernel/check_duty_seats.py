@@ -66,6 +66,7 @@ Planted breaks, each of which must change a case's answer:
     counted_recount_unread a counted conferral from an old past is not re-counted against the held growth of its body
     growth_any_body      a counted conferral is re-counted against any growth, not only its deciding body's
     behind_grows         a row from behind the act (an old-head batch after a later row) is growth against it
+    ahead_changes_only   only the signers' later counted changes, not any row they signed, put their old-head row behind
     own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
     gate_counted_any_duty  a count over one duty's holders passes the gate as the duty holders' count
     head_any_row        a head of another object's line counts (H1: a head is a counted change of the row's own object)
@@ -605,7 +606,19 @@ READER_CASES += [
     ("M3: the re-counts agree: D's seat fails against F's growth, and F's is read over that result and holds on A and B",
      [_M3G, _M3DDE, _M3DFF], None, [("D", "moderate", F), ("E", "moderate", F), ("F", "moderate", T)]),
 ]
-PLANTS += ("behind_grows",)
+READER_CASES += [
+    ("B10 (the Constitution's rule 2): A's later acknowledgement of dde, a row it signed naming a head newer than g, "
+     "makes A and B's late row at g their self-fork: F to I are not seated",
+     [_R10, _RDDE, CK.row("ka", "ack", "A", ("dde",), room=OBJ, head=("dde",)), _RSYB], None,
+     [("D", "moderate", T), ("F", "moderate", F), ("I", "moderate", F)]),
+    ("B11: and B's later post naming dde, the same", [_R10, _RDDE, CK.row("pb", "post", "B", ("dde",), room=OBJ), _RSYB],
+     None, [("D", "moderate", T), ("F", "moderate", F), ("I", "moderate", F)]),
+    ("B9 (the residual, as ruled): a reader that acknowledged only dde, a change AT g, reads syb at g as its sibling and "
+     "the batch as one, until it acknowledges anything newer than g",
+     [_R10, _RDDE, CK.row("ak", "ack", "R", ("dde",), room=OBJ, head=("dde",)), _RSYB], "R",
+     [("D", "moderate", T), ("F", "moderate", T), ("I", "moderate", T)]),
+]
+PLANTS += ("behind_grows", "ahead_changes_only")
 
 
 def reader_answers(rows, own, asks, plant=None, arrive=True):
