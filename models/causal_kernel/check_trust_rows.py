@@ -49,6 +49,7 @@ Planted breaks, each of which must change a case's answer:
     end_scope_keyed          (d) an end cuts by the scope its target names, not by every standing its key loses
     one_end_at_a_time        (d) a key's loss is read with only the one end removed: a second end cancels the cut
     reseat_masks             (d) a re-seat after the end masks the cut of a vote concurrent with the end
+    end_cuts_counted_row     (d) an end cuts a whole counted row its key signed, not only its voice
     built_on_cut_kept        (d) a row built on a row this lane cuts is kept
     still_holds_end_past     (d) whether the key still holds a standing is read over the end's past, not the judged rows
     growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
@@ -501,6 +502,24 @@ CASES += [
      [_G3, _U1, _RC, dict(_GLO_G, names=("rc",), head=("rc",)), GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
 ]
 
+# ---- the r87 attack (review-scratch b525c50, r87-attackr/c1), each a case ---------------------------------------
+_GLO3 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B", "C"), counted="duty")
+_RC_C = ST.withdraw("rc", "C", "g")
+_RC_B = ST.withdraw("rc", "B", "g")
+CASES += [
+    ("r87 C1c A, B and C confer a license seat on X", [_G3, _GLO3, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r87 C1 C resigns concurrently: its voice is discounted, A and B are still two of three",
+     [_G3, _GLO3, GLA, _RC_C, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r87 C1b and Y's seat built on that conferral stands",
+     [_G3, _GLO3, GLA, ST.offer("gy", "A", ("Y",), "license", "g", "group", ("gla",), head=("glo",), cosigners=("B",),
+                                counted="duty"), ST.accept("gya", "Y", "gy"), _RC_C, A("e", "RD", "g"),
+      glic("ly", "g", "Y") | {"names": ("gya",)}], "RD", "ly", None, OK),
+    ("r87 C1d A and B confer, C (no voice of it) resigns concurrently", [_G3, _GLO_G, GLA, _RC_C, A("e", "RD", "g"), _X],
+     "RD", "l", None, OK),
+    ("r87 and where the resigner was needed (A and B of three, B resigns): the count fails, cut",
+     [_G3, _GLO_G, GLA, _RC_B, A("e", "RD", "g"), _X], "RD", "l", None, LW),
+]
+
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
        "r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)": None}
 
@@ -529,7 +548,8 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
-          "one_end_at_a_time", "reseat_masks", "built_on_cut_kept")
+          "one_end_at_a_time", "reseat_masks", "built_on_cut_kept",
+          "end_cuts_counted_row")
 
 
 @contextlib.contextmanager
