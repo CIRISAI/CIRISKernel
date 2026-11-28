@@ -524,9 +524,26 @@ def deciding_seats(P, past, obj, heads):
     return members_at(P, past, obj, heads, OFFICER)
 
 
+AFFILIATION_PATHS = ("affiliation_member_action", "cosigned_act")
+
+
+def affiliation_path(r, by, act, pols):
+    """The one reading of an affiliation row's choice between its two paths (the Constitution's ruling), read wherever
+    the row choice is (in_force): affiliation_member_action is the one-officer countersigned path, its voices one
+    officer and one eligible outside key, so a body of two officers or more does not meet it; cosigned_act is the
+    deciding seats under the declared protocol, the path of two officers or more. Every act whose row is
+    `affiliation_member_action|cosigned_act, row` (a removal, a change of the record, a dissolution, a license seat's
+    conferral or withdrawal, an accepted trust edge). True where the row is no such choice (MUTATION
+    affiliation_path_unread: either path for any body)."""
+    if act[2] != "affiliation" or tuple(sorted(pols)) != AFFILIATION_PATHS or "affiliation_path_unread" in MUT: return True
+    past = lambda a, b: a in K.ancestors(by, b)
+    P = list(by.values())
+    n = len(deciding_seats(P, past, act_obj(r), act_heads(r, P, past)))
+    return n == 1 if r.get("policy") == "affiliation_member_action" else n >= 2
+
+
 def affiliation_count(r, P, past):
-    """The path a row states first: affiliation_member_action only with one deciding seat, cosigned_act only with two
-    or more. Affiliation.lean `admitted` for a removal: the body's own signature (every voice a deciding seat, at least
+    """Affiliation.lean `admitted` for a removal: the body's own signature (every voice a deciding seat, at least
     one), and where the body has one deciding seat, the act stands as a PROPOSAL (CC 4.5.5's reconsideration path):
     it concludes, and is in force only where a countersign names it (Seats); a body of two or more seats decides on
     two voices at least, the member removed not counted (CC 4.5.13; MUTATION two_voices_unread: on one)."""
@@ -535,10 +552,6 @@ def affiliation_count(r, P, past):
     # path, its voices one officer and one eligible outside key, so a body of two officers or more does not meet it;
     # cosigned_act is the body's deciding seats under its declared protocol, the path of two officers or more
     # (MUTATION affiliation_path_unread: either path read for any body)
-    pol = r.get("policy")
-    if "affiliation_path_unread" not in MUT:
-        if pol == "affiliation_member_action" and len(seats) != 1: return False
-        if pol == "cosigned_act" and len(seats) < 2: return False
     vs = voices(r, P)
     if not vs or not vs <= seats: return False
     if len(seats) == 1: return True
@@ -933,6 +946,7 @@ def in_force(r, by):
         else:
             if stated not in pols and "stated_policy_free" not in MUT: return REFUSED
             word = stated
+            if not affiliation_path(r, by, a, pols): return REFUSED
         # a stated regime is a consistency check: it must be the room's protocol in force in the row's past
         if r.get("regime") is not None and r.get("regime") != protocol_of(by, r.get("obj")) and "regime_unread" not in MUT:
             return REFUSED
