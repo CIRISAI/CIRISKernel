@@ -1553,6 +1553,18 @@ def election_count(r, P, past, by):
 
 
 # ---- derived: the live seats ---------------------------------------------------------------------------
+OWNER_BINDING_FAMILY = "self:delegates_to"
+
+
+def owner_binding(family, purpose):
+    """The one recogniser of an owner binding on the wire (CC 3.2, "Who owns a key"): a delegates_to row (family
+    self:delegates_to) carrying delegation_purpose "owner_binding", signed by the owner. Seats reads no family: a
+    store's seat-row adapter presents such a row as an offer of scope `owner` over the key, which Seats.one("owner",
+    key) and standing.py read; audience.py calls this to tell the binding an ownership row mirrors. `family` is the
+    resolved family pattern."""
+    return family == OWNER_BINDING_FAMILY and purpose == "owner_binding"
+
+
 class Seats:
     def __init__(self, S, holds=HOLDS, confers=CONFERS, depth=DEPTH, by_arrival=False, own=None, checkpoint=False, drop=None,
                  roster=True, pairs=True):

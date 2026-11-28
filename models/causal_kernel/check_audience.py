@@ -376,8 +376,9 @@ def check_derivation():
     if set(AU.CITES_CLASS) != {f for f, r in AU.FOLLOWS_REF.items() if r == "cites"} or \
             not all(k == "owner_binding" or any(c == k for c in AU.CITED_AS.values()) for k in AU.CITES_CLASS.values()):
         problems.append("derivation: a cites class has no family in the table")
-    if AU.OWNER_BINDING_FAMILY not in AU.FAMILIES:
-        problems.append("derivation: the owner binding's family %s is not in the table" % AU.OWNER_BINDING_FAMILY)
+    import seat as ST
+    if ST.OWNER_BINDING_FAMILY not in AU.FAMILIES:
+        problems.append("derivation: the owner binding's family %s is not in the table" % ST.OWNER_BINDING_FAMILY)
     if set(AU.FOLLOWS) != set(AU.FOLLOWS_REF):
         problems.append("derivation: the follows families %s have references %s" % (sorted(AU.FOLLOWS), sorted(AU.FOLLOWS_REF)))
     if AU.KEY_GRANT not in AU.FAMILIES:

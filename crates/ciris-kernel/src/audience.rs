@@ -568,13 +568,10 @@ pub const FOLLOWS_REF: &[(&str, FollowsRef)] = &[
     ("duty:{kind}", FollowsRef::Cites(PERMISSION_FAMILIES)),
 ];
 
-/// The family of an owner binding's row type: a delegation.
-pub const OWNER_BINDING_FAMILY: &str = "self:delegates_to";
-
-/// An owner binding (CC 3.2, "Who owns a key"), recognised by ROW TYPE and purpose, not by family: a `delegates_to`
-/// (owner to key) carrying `delegation_purpose: "owner_binding"`. It is placed by its own scope and follows nothing.
+/// An owner binding (CC 3.2), by [`crate::seat::owner_binding`], the one recogniser beside `Seats` (row type and
+/// purpose, not family). It is placed by its own scope and follows nothing.
 pub fn is_owner_binding<R: AudienceRow>(x: &R) -> bool {
-    family_of(x.family()).is_some_and(|f| f.0 == OWNER_BINDING_FAMILY) && x.purpose() == Some("owner_binding")
+    family_of(x.family()).is_some_and(|f| crate::seat::owner_binding(f.0, x.purpose()))
 }
 
 /// The row a row of a `follows` family follows, read by its family's reference ([`FOLLOWS_REF`]); the refusal where

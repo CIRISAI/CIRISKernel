@@ -81,15 +81,14 @@ FOLLOWS_REF = {"custody:{kind}": "evidence", "stream:head": "stream",
 # things; the followed row is the one cited row of the right family
 CITED_AS = {f["family"]: f["cited_as"] for f in TABLE["families"] if f.get("cited_as")}
 CITES_CLASS = {"ownership:{relation}:{target_kind}:{version}": "owner_binding", "duty:{kind}": "permission"}
-OWNER_BINDING_FAMILY = "self:delegates_to"
-
-
 def is_owner_binding(x):
-    """An owner binding (CC 3.2, "Who owns a key"), recognised by ROW TYPE and purpose, not by family: a
-    delegates_to (owner -> key) carrying delegation_purpose "owner_binding", signed by the owner. It is placed by
-    its own scope and follows nothing. MUTATION binding_by_family: any delegates_to."""
-    return family_of(x["family"]) == OWNER_BINDING_FAMILY and (
-        x.get("purpose") == "owner_binding" or "binding_by_family" in MUT)
+    """An owner binding (CC 3.2), by seat.owner_binding, the one recogniser beside Seats (by row type and purpose,
+    not by family). It is placed by its own scope and follows nothing. MUTATION binding_by_family: any
+    delegates_to."""
+    import seat as ST
+    if "binding_by_family" in MUT:
+        return family_of(x["family"]) == ST.OWNER_BINDING_FAMILY
+    return ST.owner_binding(family_of(x["family"]), x.get("purpose"))
 
 
 def cited_as(x):
