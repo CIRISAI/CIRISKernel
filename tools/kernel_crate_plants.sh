@@ -677,7 +677,7 @@ plant "stalled read over the row's own counted scope" src/seat.rs '    let scope
 plant "a stalled recovery while live" src/seat.rs '    if founders >= m + 1 {' '    if false {'
 plant "a stalled recovery that changes more" src/seat.rs 'if r.to().len() != 1 || r.consensus_protocol().is_some() || !r.cosigners().is_empty() {' 'if false {'
 plant "a stalled recovery signed by another key" src/seat.rs 'if r.to()[0] != named || *r.signer() != named {' 'if false {'
-plant "key_end: an ended key's vote counted because a live row cites it (ended_vote_retained_by_cite)" src/key_end.rs '(c.g.in_past(i, e) && !matches!' '((c.g.in_past(i, e) || c.cs().iter().any(|&x| c.g.in_past(i, x) && c.g.row(x).signer() != k)) && !matches!'
+plant "key_end: an ended key's vote counted because a live row cites it (ended_vote_retained_by_cite)" src/key_end.rs '        before(i, e, ra)' '        (before(i, e, ra) || c.cs().iter().any(|&x| c.g.in_past(i, x) && c.g.row(x).signer() != k))'
 plant "key_end: the bytes of a counted row of an ended key kept (no stub reading)" src/key_end.rs '|| (stubs && r.statement().is_some() && counts(c, i))' '|| (r.statement().is_some() && counts(c, i))'
 plant "seat: the key view not read at the voices step (key_view_unread)" src/seat.rs 'let Some(kv) = spec.key_view() else { return voices(r, p) };' 'let Some(kv) = spec.key_view().filter(|_| false) else { return voices(r, p) };'
 plant "seat: only the counted row's signer read by the key view (cosigner_key_unchecked)" src/seat.rs '.filter(|k| kv.counts(r.id(), k))' '.filter(|k| k != r.signer() || kv.counts(r.id(), k))'
