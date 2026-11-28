@@ -362,7 +362,11 @@ fn bound_openers_take_the_models_tables() {
                 // rule_bound_why tells a wait from concluding nothing; read as rule_bound, it is rule_bound
                 let why = rule_bound_why(p, &families, &none, &law, &spec);
                 let plain = rule_bound(p, &families, &none, &law, &spec);
-                assert_eq!(why.map(|r| r.unwrap_or(false)), plain, "rule_bound_why and rule_bound differ");
+                assert_eq!(
+                    why.as_ref().map(|r| *r.as_ref().unwrap_or(&false)),
+                    plain,
+                    "rule_bound_why and rule_bound differ"
+                );
                 assert_eq!(why.is_some(), p.row().win_kind().is_some(), "rule_bound_why answers a window row only");
                 why_ok.set(why_ok.get() + why.is_some_and(|r| r.is_ok()) as usize);
                 match plain {

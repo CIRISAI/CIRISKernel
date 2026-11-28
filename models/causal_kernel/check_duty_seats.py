@@ -65,6 +65,7 @@ Planted breaks, each of which must change a case's answer:
     lone_regrowth_unread a lone holder's conferral concurrent with the grown body's counted act is not re-counted (r81 B2)
     counted_recount_unread a counted conferral from an old past is not re-counted against the held growth of its body
     growth_any_body      a counted conferral is re-counted against any growth, not only its deciding body's
+    behind_grows         a row from behind the act (an old-head batch after a later row) is growth against it
     own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
     gate_counted_any_duty  a count over one duty's holders passes the gate as the duty holders' count
     head_any_row        a head of another object's line counts (H1: a head is a counted change of the row's own object)
@@ -570,8 +571,49 @@ CASES = [(c[0], ST.honest(c[1], None if "review of #54" not in c[0] else {r["id"
          + tuple(c[2:]) for c in CASES]
 
 
+# the Constitution's ruling on the batch (r98): A and B (2 of the 3 moderators) seat D and E at g (dde); A, B and C
+# then confer slash on A at dde (c2, a counted change after g, 3 of 5); later A and B seat F, G, H and I at g again
+# (syb, naming only g). (name, rows, reader, asks): a reader is read through its line (seat.reader_state)
+_R10 = ST.found("g", "A", tuple("ABCDEFGHIR"), {"moderate": ("A", "B", "C")}, cosigners=tuple("BCDEFGHIR"))
+_RDDE = ST.offer("dde", "A", ("D", "E"), "moderate", OBJ, "group", ("g",), head=("g",), cosigners=("B", "D", "E"),
+                 counted="duty", policy="duty_confer")
+_RC2 = ST.offer("c2", "A", "A", "slash", OBJ, "group", ("dde",), head=("dde",), cosigners=("B", "C"), counted="duty",
+                policy="duty_confer")
+_RSYB = ST.offer("syb", "A", ("F", "G", "H", "I"), "moderate", OBJ, "group", ("g",), head=("g",),
+                 cosigners=("B", "F", "G", "H", "I"), counted="duty", policy="duty_confer")
+READER_CASES = [
+    ("the batch, a reader past g: R took up c2 (its line has passed g), so syb at g is behind its line and void for it; "
+     "the grown body stands", [_R10, _RDDE, _RC2, CK.row("ak", "ack", "R", ("c2",), room=OBJ, head=("c2",)), _RSYB],
+     "R", [("D", "moderate", T), ("F", "moderate", F), ("I", "moderate", F)]),
+    ("the batch, a fresh reader holding c2 (A and B's own later row): syb at g lacks it and is re-counted from behind c2, "
+     "void; the grown body stands", [_R10, _RDDE, _RC2, _RSYB], None,
+     [("D", "moderate", T), ("A", "slash", T), ("F", "moderate", F), ("I", "moderate", F)]),
+    ("the batch, the residual: a fresh reader holding nothing later by A or B reads dde and syb at g as one batch "
+     "(the stated head-rule cost)", [_R10, _RDDE, _RSYB], None,
+     [("D", "moderate", T), ("F", "moderate", T), ("I", "moderate", T)]),
+]
+PLANTS += ("behind_grows",)
+
+
+def reader_answers(rows, own, asks, plant=None, arrive=True):
+    with planted(plant):
+        S = CK.arrive(list(rows), RULE) if arrive else CK.concluded(CK.kept(list(rows)), RULE)
+        Q = ST.Seats(ST.reader_state(S, own) if own else S, own=own)
+        return [Q.stands(k, sc, OBJ) for k, sc, _ in asks]
+
+
 def main():
     problems, n_orders = [], 0
+    for name, rows, own, asks in READER_CASES:
+        want = [w for _, _, w in asks]
+        got = reader_answers(rows, own, asks, arrive=False)
+        if got != want:
+            problems.append("%s: got %s, expected %s" % (name, got, want))
+        for p in orders(rows):
+            n_orders += 1
+            if reader_answers([rows[0]] + list(p), own, asks) != got:
+                problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
+                break
     for name, rows, asks, tab in CASES:
         want = [w for _, _, w in asks]
         got = answers(rows, asks, tab)
@@ -586,6 +628,8 @@ def main():
     caught = 0
     for plant in PLANTS:
         hit = [name for name, rows, asks, tab in CASES if answers(rows, asks, tab, plant) != [w for _, _, w in asks]]
+        hit += [name for name, rows, own, asks in READER_CASES
+                if reader_answers(rows, own, asks, plant, arrive=False) != [w for _, _, w in asks]]
         caught += bool(hit)
         print("  plant %-18s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
         if not hit:
