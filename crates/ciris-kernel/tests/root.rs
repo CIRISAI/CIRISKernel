@@ -368,6 +368,32 @@ fn root_chain_replay() {
             }
         }
     }
+    // standing is re-read at the reader: concluded under one root view, read under another
+    for c in fx.at("reread").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(c.at("rows").arr(), &refs);
+        let gs = grants(c.at("grants"));
+        let revs: Vec<Revocation<String, String>> = Vec::new();
+        let identity = |_: &String| Identity { user: true, node: false };
+        let (b_at, b_now) = (bundles(c.at("at").at("bundles")), bundles(c.at("now").at("bundles")));
+        let (r_at, r_now) = (Root::new(&b_at, &revs, &gs), Root::new(&b_now, &revs, &gs));
+        let v_at = RootReading { root: &r_at, reader: reader(c.at("at").at("reader")), identity: &identity };
+        let v_now = RootReading { root: &r_now, reader: reader(c.at("now").at("reader")), identity: &identity };
+        let s_at = RootCut(Some(&v_at as &dyn RootView<String, String, Obj<String, String>>));
+        let s_now = RootCut(Some(&v_now as &dyn RootView<String, String, Obj<String, String>>));
+        let cc = conclude(kept(&rows, |_| true), |p| seat_rule(p, &law, &s_at, &|_| true), None);
+        let q = Seats::new(&cc, &law, &s_now, None);
+        for a in c.at("stands").arr() {
+            let a = a.arr();
+            let (k, sc, want) = (a[0].s().to_string(), a[1].s(), a[2].b());
+            cases += 1;
+            if q.stands(&k, sc, &Obj::Row("room".to_string()), None) != want {
+                bad += 1;
+                eprintln!("root chain re-read {}: {k} in {sc}: want {want}", c.at("name").s());
+            }
+        }
+    }
     report("chains from a root grant, against check_delegation.py", cases, bad);
     assert_eq!(bad, 0);
 }

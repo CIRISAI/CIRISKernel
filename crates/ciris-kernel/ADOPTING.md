@@ -169,6 +169,10 @@ Present:
   affiliation is counted over its officers (`counted` `officer`); with no officer it is dissolved. With one officer
   the removal concludes as a proposal and is in force only where a countersign naming it counts; the acting seat's
   withdrawal of the removal clears it; with two or more it decides on two voices at least, the member removed apart.
+- with one officer, every other counted act of the affiliation but an admission of a member (no role) is a proposal
+  the same way: a lone act, an appointment carrying the officer role, any unseat, a change of the record, a
+  dissolution, a license seat. The countersign's `of()` names that act; a change of the official is countersigned by
+  the official it replaces or an overseer.
 
 **A duty holder's lone acts** (CC 4.5.5, CC 3.1.9.2; CHANGELOG). Present each by its family, its parameter as
 `family_param()`: a quarantine marker (`quarantine:{state}`) as `SeatKind::Quarantine` (`target_key()` the key, the
@@ -402,7 +406,10 @@ trusting an adapter.
 - A moderator's lone removal of an agent's key is an Unseat of its `agent` seat, `Conf::Group`, signed by the
   moderator alone, at the head it names. There is no mark to set: the seat's scope says whose key it is. An
   Unseat of a `member` seat so signed is counted as any removal is, and fails where it failed. The re-seating
-  row of the lift is an Offer of scope `agent`.
+  row of the lift is an Offer of scope `agent`, citing the removal (`content`) and naming the newest counted
+  changes in its own past as its heads (H4, no exemption). It is counted over the persons seated at both the
+  removal's head and its own heads, the removal's author apart: a member admitted after the removal is no voice
+  of it, one removed or gone since is out of it.
 - That removal is in force only while the moderator's `moderate` standing is, by the end rule: once an end of
   the standing is held (its own withdrawal, a counted removal of it, the holders' counted withdrawal of its
   duty), the removal ends nothing for that reader unless a receipt of it is held, and nothing puts it back: a

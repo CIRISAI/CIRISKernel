@@ -361,14 +361,14 @@ def authority_act_over(S, q):
 
 # ---- body growth over the rows the reader HOLDS (the tips fold's rule, which a lone duty conferral already reads) ---
 def growth_of(S, o):
-    """The rows that grow group `o`'s body, among the concluded rows S holds: its changes (body_change) and the
-    acceptances completing them."""
+    """The rows that grow group `o`'s body, among the concluded rows S holds: its changes (body_change), the
+    acceptances completing them, and the countersigns deciding a one-officer body's (CC 4.4.3.12, item 8)."""
     out = []
     for q in S.Cs:
         if body_change(q, o):
             out.append(q)
-        elif q["kind"] == "accept" and q.get("of") in S.by and body_change(S.by[q["of"]], o):
-            out.append(q)
+        elif q["kind"] in ("accept", "countersign") and q.get("of") in S.by and body_change(S.by[q["of"]], o):
+            out.append(q)          # the acceptance completing it, or the countersign deciding a one-officer body's act
     return out
 
 

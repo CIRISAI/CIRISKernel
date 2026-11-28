@@ -161,7 +161,8 @@ fn speaks_for<R: SeatRow, S: CutSpec<R>>(
                 let bound = policy_for(seats.law(), Act::Accept, ScopeClass::TrustEdge, CommunityKind::Affiliation)
                     .is_some_and(|(p, _)| p.len() == 1 && p[0] == "cosigned_act");
                 let voices: BTreeSet<R::Key> = who.iter().map(|k| (*k).clone()).collect();
-                return bound && declared_count(past, src, &seats.protocol_body(src), &voices);
+                return bound
+                    && declared_count(past, seats.law(), seats.spec(), src, &seats.protocol_body(src), &voices);
             }
             // the acts row binds the count
             let bound = policy_for(seats.law(), Act::Accept, ScopeClass::TrustEdge, CommunityKind::Community)
@@ -456,8 +457,8 @@ fn sub_of<'a, R: Row>(c: &Concluded<'a, R>, idx: &[usize]) -> Concluded<'a, R> {
 
 // ---- body growth over the rows the reader HOLDS (the tips fold's rule, which a lone duty conferral already reads) ---
 
-/// The rows that grow group `o`'s body among the concluded rows: its changes ([`body_change`]) and the acceptances
-/// completing them.
+/// The rows that grow group `o`'s body among the concluded rows: its changes ([`body_change`]), the acceptances
+/// completing them, and the countersigns deciding a one-officer body's (CC 4.4.3.12, item 8).
 fn growth_of<R: SeatRow>(c: &Concluded<'_, R>, o: &ObjOf<R>) -> Vec<usize> {
     c.cs()
         .iter()
@@ -465,7 +466,7 @@ fn growth_of<R: SeatRow>(c: &Concluded<'_, R>, o: &ObjOf<R>) -> Vec<usize> {
         .filter(|&x| {
             let q = c.g.row(x);
             body_change(q, o)
-                || (q.seat_kind() == SeatKind::Accept
+                || (matches!(q.seat_kind(), SeatKind::Accept | SeatKind::Countersign)
                     && q.of().and_then(|i| c.g.idx(i)).is_some_and(|i| body_change(c.g.row(i), o)))
         })
         .collect()
@@ -772,7 +773,7 @@ fn issuance<R: TrustRow + Dated, S: CutSpec<R>>(
         let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
         let past = Past::new(&with.g, last, &p);
         let voices: BTreeSet<R::Key> = signers(r).into_iter().cloned().collect();
-        if declared_count(&past, &a, &at.protocol_body(&a), &voices) {
+        if declared_count(&past, at.law(), at.spec(), &a, &at.protocol_body(&a), &voices) {
             if !locked(&at, &a) {
                 return None;
             }

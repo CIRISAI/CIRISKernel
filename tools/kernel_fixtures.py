@@ -814,14 +814,26 @@ def main():
     import check_delegation as CD
     chains = []
     for case in CD.ROOT_CASES:
-        name, bs, rd, rows, asks = case
+        name, bs, rd, rows, asks = case[:5]
+        grants = case[5] if len(case) > 5 else (CD.GA,)
         refs = {}
         got = CD.root_answers(case)
         chains.append({"name": name, "rows": with_refs(rows, refs), "refs": refs,
-                       "bundles": [CR.benc(b) for b in bs] if bs is not None else None, "grants": [CR.genc(CD.GA)],
+                       "bundles": [CR.benc(b) for b in bs] if bs is not None else None,
+                       "grants": [CR.genc(g) for g in grants],
                        "reader": CR.renc(rd), "stands": [[k, sc, w] for (k, sc, _), w in zip(asks, got)]})
+    reread = []
+    for case in CD.REREAD:
+        name, at, now, asks = case
+        refs = {}
+        got = CD.reread_answers(case)
+        reread.append({"name": name, "rows": with_refs([CD.ROOM, CD.RS, CD.RD1], refs), "refs": refs,
+                       "at": {"bundles": [CR.benc(b) for b in at[0]], "reader": CR.renc(at[1])},
+                       "now": {"bundles": [CR.benc(b) for b in now[0]], "reader": CR.renc(now[1])},
+                       "grants": [CR.genc(CD.GA)], "stands": [[k, sc, w] for (k, sc, _), w in zip(asks, got)]})
     dump("root_chains.json", {"about": "check_delegation.py's root chains: the seat a root grant gives, and the "
-                                       "onward gate read from the charter in force", "cases": chains}, out)
+                                       "onward gate read from the charter in force", "cases": chains,
+                              "reread": reread}, out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():

@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+**The r75 attack's fixes** (review-58 on e9672d8), each a case and a plant, in both languages:
+- An agent's owner: the owner seat is held only by the owner's own signature (the seat walk's live owner seat, as
+  for a node's binding); the duty is TIED to the binding, which must be in the conferral's own past, so a new
+  binding (a sock owner) revives no old conferral and the end of the one it stands on ends it for good; an agent is
+  recognised by its agent registration (`SeatRow::agent_registration`, new, default `false`) or its agent seat, so
+  one admitted as a member still needs its owner.
+- No lone act lifts or reverses itself by its own target: the key withheld never releases its own withhold, and a
+  content's author never reconsiders its takedown.
+- `is_founder` reads at the newest counted changes in the row's own past, never at the heads it states.
+- Targets are the room's: a takedown's content row is of the room it acts in, and a marker's or verdict's key is
+  seated over the room at the act's heads.
+- The countersign: the overseers are read in the act's own past (the crate now as the model), and by the end rule
+  an overseer's lay-down or removal not having the countersign in its past cuts it.
+- A root grant's seat is re-read at the reader: held only while the grant resolves in the reader's root view now.
+- The lift at both heads (ported from the lift lane, 2f9b46f): counted over the members at both the act's head and
+  the lift's, so members admitted after the act cannot carry it.
+
+**Item 8, ruled by the Constitution: a one-officer affiliation's every counted act but an admission needs the
+countersign.** While an affiliation has one officer, admitting a member is its only act that needs none. The four
+acts against a member, an officer's appointment or removal, a change of the record (the official, `overseen_by`, the
+protocol, the licence classes), a license seat's conferral or withdrawal, and a dissolution each conclude as a
+proposal: until a countersign naming it counts, it seats, cuts and declares nothing for the reader, and a later row's
+past reads the record without it. An officer's own lay-down needs none (the last one's dissolves the body). The
+countersigner of a change of the official is the official it replaces (read in the change's own past) or a review
+holder of `overseen_by`, so an official refusing its replacement is replaced only through the overseer. A countersign
+in the past of an act's heads is read at those heads, so an appointment decided there seats its officer. Edges, each
+a case: a one-officer body with no official and no `overseen_by` can admit and do nothing else; r75 c1 (the one
+officer appoints a sock officer and the two remove a member) is refused, the appointment itself being a proposal.
+`protocol_record`, `protocol_of` and `declared_count` take the law and the cut spec (a change's in-force reading asks
+for the officers). Residual: two officer keys one person keeps unlinked, in no shared roster, are seen by no rule, and
+the members see two officers when they join. Officers are counted by key until key-person's persons function is
+merged (then by person, so two keys in one roster are one officer). An onward trust edge's countersign is the
+charter lane's (trust_rows reads this body).
+
 **A delegation chain from a root grant** (the cross-object rest 5; the lead's shape). The seat a root grant gives is
 an offer of `Conf::Root`, naming the grant (`SeatRow::bundle`), of the grant's duty, over the room the grant names,
 to and signed by the key the grant names. It stands while the grant resolves at the reader of the root view
@@ -12,8 +46,9 @@ root read it seats nothing. The onward gate of a chain from it reads the charter
 (chains from any other seat keep it). **BREAKING**: `Conf::Root` (a new variant); `RootView::seat_grant` (new, with a
 default); `RootGrant::Word` must be `AsRef<str>`. The root seat is read by THE ONE authority gate
 (`authority_gate`, the charter lane's): a seat of a group's authority is its authority body's act, and the one
-other path is a resolving root grant whose scope carries the duty. Eight cases in `check_delegation.py`
-(ROOT_CASES; a declared duty among them), in a new fixture `root_chains.json` replayed by `tests/root.rs`; plants
+other path is a resolving root grant whose scope carries the duty. Ten cases in `check_delegation.py`
+(ROOT_CASES; a declared duty among them, and the reader's monotone line: a grant on a bundle one reader's line holds
+void seats nothing for it and seats for a reader whose line holds the bundle), in a new fixture `root_chains.json` replayed by `tests/root.rs`; plants
 `root_gate_unread`, `root_seat_unchecked`, `root_seat_any_duty`, `root_through_lone_gate`, with crate twins.
 
 **A duty holder's lone acts against a key or content, and their ways back** (CC 4.5.4 (iii), CC 4.5.5, CC 3.1.9.2,
@@ -255,6 +290,26 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
   remove that holder by an amend). **The residual, stated:** "a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past". It can matter only where that holder's voice is the
   deciding one of an exact majority, and the statement over s2 and the grant on s1 are held evidence the other holders
   can cite when they name both tips.
+
+**The lift's base: the persons at both heads** (the lift follow-up, after the head rules). A lift (a re-seating
+citing a moderator's lone removal of an agent's key) names the newest counted changes in its own past (H4, no
+exemption) and is counted over the persons seated at BOTH the removal's head and its own heads, the removal's
+author apart; the removed key still must have held its `agent` seat at the removal's head. **An answer changes:**
+a member admitted after the removal is no voice of the lift and not counted over, so a room that grows after a
+removal cannot pack its lift (a room of two that grew lifts nothing: its base is one person, under the floor of two;
+the room's own count can admit the key again); a member removed since is out of it, and one removed and re-admitted
+is in it. Seven cases in `check_agent_removal.py`; plants `lift_base_lift_head` and `lift_base_removal_head` in
+both languages.
+
+**One line across the models: the end of a conferral reads the sibling-safe line** (the ruling of 2026-11-27, ruling
+A of the superseded-bundle read, persist's item 13). `conferral::answers`'s `end_void.line` now voids an end for a
+reader only where the head the end names is strictly in the past of a head the acknowledged one extends, as the
+seat model's line does. An end at the head an acknowledged version directly extends is its sibling and stands.
+**An answer changes:** an end at G0, read by a reader that acknowledged G1 (G1 extending G0), was void for it and
+now stands (`conferral_two.json`: "(d) reader at the later"; `conferral_end.json`: `end_sibling_for_reader`; the
+strictly-behind case is now `end_old_fork_for_reader` with a third head). The TLA spec's end line drops its
+acknowledgement clause (its two heads have no strictly-behind end). Plants `line_not_sibling_safe` (the reference)
+and one in the crate.
 
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone

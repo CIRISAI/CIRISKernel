@@ -358,6 +358,8 @@ R_DC, R_DCA = ST.offer("dc", "A", "C", "moderate", "g", "self", ("g",)), ST.acce
 R_LS, R_LSA = ST.offer("ls", "A", "X", "license", "g", "self", ("g",)), ST.accept("lsa", "X", "ls")   # A alone, at g
 R_AOB = ST.offer("aob", "A", ("B",), "member", "af", "group", ("af",), head=("af",), cosigners=("B",),
                  counted=ST.OFFICER, role=ST.OFFICER)                                              # A appoints B
+R_ACS = ST.R("acs", "countersign", "O", ("aob",), of="aob")   # the one officer's appointment needs its official's countersign
+AFD1O = dict(AFD1, official="O")                               # AFD1 with its designated official O (item 8)
 R_G2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B"), "review": ("A",)}, cosigners=("B", "C"),
                 licence_classes=((M, False),))
 R_LDR = ST.withdraw("ldr", "A", "g", (), scope="review")         # A lays down review only; it still holds moderate
@@ -386,10 +388,12 @@ CASES += [
      [G1, R_DC, R_DCA, R_LS, R_LSA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("lsa",)}], "RD", "l", None, NA),
     ("r77 N2 holding none of the growth: the residual",
      [G1, R_LS, R_LSA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("lsa",)}], "RD", "l", None, OK),
-    ("r77 N4c the outsider holding aob: A's own licence counted over officers A and B",
-     [AFD1, R_AOB, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
+    ("r77 N4c the outsider holding aob and its countersign: A's own licence counted over officers A and B",
+     [AFD1O, R_AOB, R_ACS, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
+    ("r77 N4c' holding aob uncountersigned (item 8): B is no officer, A's licence stands",
+     [AFD1O, R_AOB, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, OK),
     ("r77 N4c holding none: the residual", [AFD1, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, OK),
-    ("r77 N4e the outsider holding aob: A's edge for af", [AFD1, R_AOB, A("e", "RD", "af", depth=1),
+    ("r77 N4e the outsider holding aob: A's edge for af", [AFD1O, R_AOB, R_ACS, A("e", "RD", "af", depth=1),
                                                           A("f", "A", "K", on_behalf="af", names=("af",)),
                                                           klic("l")], "RD", "l", KCH, NR),
     ("r77 N4e holding none: the residual", [AFD1, A("e", "RD", "af", depth=1),
@@ -403,9 +407,9 @@ CASES += [
      [G1, R_DC, R_DCA, R_LS, R_LSA, ACK("ak", "g", "dca"), A("e", "RD", "g"),
       glic("l", "g", "X") | {"names": ("lsa", "dca")}], "RD", "l", None, NA),
     ("r77 N4c A alone, lone officer before B's appointment, licenses naming only af, behind the line",
-     [AFD1, R_AOB, ACK("ak", "af", "aob"), A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
+     [AFD1O, R_AOB, R_ACS, ACK("ak", "af", "acs"), A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
     ("r77 N4e and an edge for af naming only af, behind the line",
-     [AFD1, R_AOB, ACK("ak", "af", "aob"), A("e", "RD", "af", depth=1),
+     [AFD1O, R_AOB, R_ACS, ACK("ak", "af", "acs"), A("e", "RD", "af", depth=1),
       A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH, NR),
     ("r77 N5b a grown community: A and B's quorum licence naming only g, behind the line (it took up aG)",
      GROWN + [ACK("ak", "g", "aG"), A("e", "RD", "g"), glic("l", "g", cosigners=("B",))], "RD", "l", None, NA),
@@ -427,8 +431,8 @@ _DC2, _DA2 = ST.offer("dc2", "A", "B", "moderate", "g", "self", ("g",)), ST.acce
 _GLO_C = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dca",), head=("dc",), cosigners=("C",), counted="duty")
 _AOB = ST.offer("aob", "A", ("B",), "member", "af", "group", ("af",), head=("af",), cosigners=("B",),
                 counted=ST.OFFICER, role=ST.OFFICER)
-_LSO = ST.offer("lso", "A", ("X",), "license", "af", "group", ("aob",), head=("aob",), cosigners=("B",),
-                counted=ST.OFFICER)
+_LSO = ST.offer("lso", "A", ("X",), "license", "af", "group", ("aob", "acs"), head=("aob",), cosigners=("B",),
+                counted=ST.OFFICER)                    # names the appointment's countersign: B an officer at its head
 _RV = ST.offer("rv", "A", "A", "review", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
                policy="duty_confer")
 _GLO_RV = ST.offer("glo", "A", ("X",), "license", "g", "group", ("rv",), head=("rv",), cosigners=("B",), counted="duty",
@@ -441,9 +445,9 @@ CASES += [
      [G1, R_DC, R_DCA, ST.withdraw("wc", "C", "g", ("dca",)), _GLO_C, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
     ("r80 F1c with no resignation", [G1, R_DC, R_DCA, _GLO_C, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
     ("r80 F2 an appointed officer withdraws its appointment, concurrent with the officers' license conferral: cut",
-     [AFD1, _AOB, ST.withdraw("wb", "B", "aob", ("aob",)), _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
+     [AFD1O, _AOB, R_ACS, ST.withdraw("wb", "B", "aob", ("aob",)), _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
       glic("l", "af", "X") | {"names": ("lsa",)}], "RD", "l", None, LW),
-    ("r80 F2c with no withdrawal", [AFD1, _AOB, _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
+    ("r80 F2c with no withdrawal", [AFD1O, _AOB, R_ACS, _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
                                     glic("l", "af", "X") | {"names": ("lsa",)}], "RD", "l", None, OK),
     ("r80 F3 A lays down moderate concurrent with its counted review seat and the conferral: A still a holder",
      [GD, _RV, ST.withdraw("ldm", "A", "g", (), scope="moderate"), _GLO_RV, GLA, A("e", "RD", "g"), _X], "RD", "l",
