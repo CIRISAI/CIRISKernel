@@ -253,3 +253,41 @@ fn foreign_rows_are_read_and_never_dirty() {
     assert_eq!((a.dirty, a.foreign), (vec![4], vec![0, 2]), "sorted, each once");
     assert!(h.is_foreign(&0) && !h.is_foreign(&1));
 }
+
+/// `Held::lacks` names exactly the ids a waiting row names that are not held, after every admission and in every
+/// order tried; a row kept or never offered lacks nothing; and a waiting row's answer changes only on an admission
+/// that keeps one of the ids it lacks (re-asking on the row a wait names, ADOPTING.md).
+#[test]
+fn lacks_names_what_a_row_waits_on() {
+    for (n, k, w, seed) in [(40, 2, 4, 1), (80, 3, 16, 2)] {
+        let rows = dag(n, k, w, seed);
+        for o in orders(&rows) {
+            let mut h = Held::empty(Rules { wf: |_: &N| true, rule: parity });
+            let mut offered: Vec<u32> = Vec::new();
+            for r in &o {
+                let before: Vec<(u32, Vec<u32>)> = offered.iter().map(|&i| (i, h.lacks(&i))).collect();
+                let a = h.admit(r).unwrap();
+                offered.push(r.id);
+                for (i, was) in before {
+                    let now = h.lacks(&i);
+                    if !was.is_empty() && !was.iter().any(|x| a.kept.contains(x)) {
+                        assert_eq!(now, was, "row {i} changed on an admission keeping none of what it lacked");
+                    }
+                }
+                for &i in &offered {
+                    let row = o.iter().find(|q| q.id == i).unwrap();
+                    let mut want: Vec<u32> = row.names().iter().copied().filter(|x| !h.holds(x)).collect();
+                    want.sort_unstable();
+                    want.dedup();
+                    if h.holds(&i) {
+                        assert!(h.lacks(&i).is_empty());
+                    } else {
+                        assert!(h.waits(&i) && !want.is_empty());
+                        assert_eq!(h.lacks(&i), want);
+                    }
+                }
+            }
+            assert!(h.lacks(&u32::MAX).is_empty());
+        }
+    }
+}

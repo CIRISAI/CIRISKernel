@@ -202,7 +202,7 @@ impl<I> Admitted<I> {
     }
 }
 
-struct Wait<'a, R> {
+struct Waiting<'a, R> {
     row: &'a R,
     left: usize,
     foreign: bool,
@@ -219,7 +219,7 @@ pub struct Held<'a, R: Row, S> {
     /// How many held rows are foreign.
     foreigners: usize,
     /// The rows offered whose names are not all held, by id.
-    waiting: BTreeMap<R::Id, Wait<'a, R>>,
+    waiting: BTreeMap<R::Id, Waiting<'a, R>>,
     /// For each id not held that a waiting row names, the waiting rows that name it.
     waiting_on: BTreeMap<R::Id, Vec<R::Id>>,
     /// The rows whose pasts stay computed, least recently used first, as (use, row). A row is used when it
@@ -256,7 +256,7 @@ impl<'a, R: Row, S: Clone> Clone for Held<'a, R, S> {
             waiting: self
                 .waiting
                 .iter()
-                .map(|(k, w)| (k.clone(), Wait { row: w.row, left: w.left, foreign: w.foreign }))
+                .map(|(k, w)| (k.clone(), Waiting { row: w.row, left: w.left, foreign: w.foreign }))
                 .collect(),
             waiting_on: self.waiting_on.clone(),
             recent: self.recent.clone(),
@@ -403,7 +403,7 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
             for n in &lacks {
                 self.waiting_on.entry((*n).clone()).or_default().push(id.clone());
             }
-            self.waiting.insert(id.clone(), Wait { row: r, left: lacks.len(), foreign });
+            self.waiting.insert(id.clone(), Waiting { row: r, left: lacks.len(), foreign });
             return Ok(Admitted::none(true, visited));
         }
         // every id it names is held: keep it, then whatever it releases
@@ -658,6 +658,16 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
     /// Whether a row with this id was offered and waits.
     pub fn waits(&self, id: &R::Id) -> bool {
         self.waiting.contains_key(id)
+    }
+    /// The ids a waiting row still lacks: the ids it names that are not held, ascending and each once. Empty
+    /// when `id` does not wait (held, or never offered). The row is kept, and concluded, when the last of these
+    /// arrives; the arrival of any other row leaves it waiting on the same ids.
+    pub fn lacks(&self, id: &R::Id) -> Vec<R::Id> {
+        let Some(w) = self.waiting.get(id) else { return Vec::new() };
+        let mut v: Vec<R::Id> = w.row.names().iter().filter(|n| self.con.g.idx(n).is_none()).cloned().collect();
+        v.sort_unstable();
+        v.dedup();
+        v
     }
     /// The ids of the rows that wait, ascending.
     pub fn waiting(&self) -> impl Iterator<Item = &R::Id> + '_ {

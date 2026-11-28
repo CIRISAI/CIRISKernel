@@ -369,3 +369,77 @@ fn stalled_recovery_replay() {
     report("stalled recovery against the trust root, against check_root.py", cases, bad);
     assert_eq!(bad, 0);
 }
+
+/// Re-asking on the row a wait names (`check_root.py`'s WAITS, ADOPTING.md "Re-asking"): each case's fold rows and
+/// root rows arrive in the model's orders. After each arrival the row asked is not offered, or waits in a [`Held`]
+/// lacking exactly the ids [`Held::lacks`] names, or is kept and answered by `seat::seat_rule_why` against the root
+/// of the rows held: true, false, or a wait naming the row it needs. Every answer equals the model's.
+#[test]
+fn waits_replay() {
+    use ciris_kernel::held::{Held, Rules};
+    use ciris_kernel::seat::seat_rule_why;
+    use ciris_kernel::Wait;
+    let fx = fixture("root.json");
+    let law = law_of(fixture("seat.json").at("law"));
+    let (mut cases, mut bad) = (0, 0);
+    for c in fx.at("waits").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(c.at("rows").arr(), &refs);
+        let items = c.at("items").arr();
+        let rid = c.at("row").s();
+        let rd = c.get("reader").filter(|r| !r.is_null()).map(reader);
+        for o in c.at("orders").arr() {
+            let order: Vec<usize> = o.at("order").arr().iter().map(|i| i.i() as usize).collect();
+            let trace = o.at("trace").arr();
+            let mut held = Held::empty(Rules { wf: |_: &TRow| true, rule: |_: &Past<'_, '_, TRow>| true });
+            for (k, want) in trace.iter().enumerate() {
+                let now: Vec<&J> = order[..=k].iter().map(|&i| &items[i]).collect();
+                if let Some(ix) = items[order[k]].get("row") {
+                    let _ = held.admit(&rows[ix.i() as usize]);
+                }
+                let fold: Vec<&TRow> =
+                    now.iter().filter_map(|it| it.get("row")).map(|ix| &rows[ix.i() as usize]).collect();
+                let got = if !fold.iter().any(|r| r.id == rid) {
+                    J::Null
+                } else if held.waits(&rid.to_string()) {
+                    let mut m = BTreeMap::new();
+                    m.insert("lacks".to_string(), J::Arr(held.lacks(&rid.to_string()).into_iter().map(J::Str).collect()));
+                    J::Obj(m)
+                } else {
+                    let bs: Vec<TB> = bundles(&J::Arr(now.iter().filter_map(|it| it.get("bundle")).cloned().collect()));
+                    let gs: Vec<TG> = grants(&J::Arr(now.iter().filter_map(|it| it.get("grant")).cloned().collect()));
+                    let revs: Vec<Revocation<String, String>> = Vec::new();
+                    let identity = |k: &String| {
+                        let ids: Vec<String> = gs.iter().find(|g| &g.to == k).map(|g| g.identity.clone()).unwrap_or_default();
+                        Identity { user: ids.iter().any(|i| i == "user"), node: ids.iter().any(|i| i == "node") }
+                    };
+                    let root = Root::new(&bs, &revs, &gs);
+                    let view = rd.clone().map(|reader| RootReading { root: &root, reader, identity: &identity });
+                    let on = c.at("root").b();
+                    let spec = RootCut(view.as_ref().filter(|_| on).map(|v| v as &dyn RootView<String, String, Obj<String, String>>));
+                    let ks: Vec<&TRow> = held.concluded().g.rows().to_vec();
+                    let cc = conclude(ks, |p| seat_rule(p, &law, &spec, &|_| true), None);
+                    let i = cc.g.rows().iter().position(|r| r.id == rid).expect("the row asked is kept");
+                    let anc: Vec<usize> = cc.cs().iter().copied().filter(|&q| cc.g.in_past(q, i)).collect();
+                    match seat_rule_why(&Past::new(&cc.g, i, &anc), &law, &spec, &|_| true) {
+                        Ok(b) => J::Bool(b),
+                        Err(Wait(x)) => {
+                            let mut m = BTreeMap::new();
+                            m.insert("waits".to_string(), J::Str(x));
+                            J::Obj(m)
+                        }
+                    }
+                };
+                cases += 1;
+                if &got != want {
+                    bad += 1;
+                    eprintln!("waits {} order {order:?} after {}: got {got:?}, want {want:?}", c.at("name").s(), k + 1);
+                }
+            }
+        }
+    }
+    report("waits on a named row, in the model's arrival orders, against check_root.py", cases, bad);
+    assert!(cases > 0);
+    assert_eq!(bad, 0);
+}

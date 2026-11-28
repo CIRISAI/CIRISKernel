@@ -212,6 +212,27 @@ key's rows, and ADOPTING told persist to keep and so count a cited late row. The
 count, so their STUBS are kept for good (`retained`); their BYTES drop once settled (`bytes_retained`, new: what a
 live row names, rows of keys not ended, revocations and rotations), as the purge keeps a settled act's stub (K13;
 plant `stub_drops_counted`).
+**Re-ask on the row a wait names.** Every answer persist asks tells "waits on row X" from "concludes nothing",
+so a store holds a row and re-asks only when the named row arrives (ADOPTING.md, "Re-asking"). New, the old
+functions kept as wrappers: `ciris_kernel::Wait<I>`; `seat::seat_rule_why` and `window::rule_why`
+(`Result<bool, Wait<Id>>`); `seat::stalled_recovery_waits` (the grant a stalled widening names);
+`root::Root::grant_waits` and `RootView::waits_on` (the grant, the reader's anchor, or a bundle the grant names,
+where the root does not hold it; default none); `held::Held::lacks` (the ids a waiting row still lacks); and
+`seat::infra_live` with `seat::Liveness` (`Live`, or `Stalled { active, m }`). A kept row's fold reads are final
+(a later row is no row's ancestor), so the seat and window rules wait only on the trust root's rows. No answer
+changes. Cases: `check_root.py` WAITS (five, each in up to twelve arrival orders, with the contract checked over
+every order: a wait names only rows not held and holds until one of them is held; a true or false stays) and
+`check_acts.py` INFRA_LIVE (nine, every arrival order); plants `waits_names_nothing`, `waits_on_grant`,
+`waits_anchor_unread`, `lacks_first_only`, `live_at_m`, `live_at_founding`; replayed by `tests/root.rs`
+(`waits_replay`, every answer after every arrival) and `tests/acts.rs` (`infra_live_replay`), with
+`tests/held.rs` (`lacks_names_what_a_row_waits_on`).
+**A group referenced by id alone never picks between founding rows** (the Constitution's ruling): `SeatRow::group_id`
+(default none), `seat::group_of(rows, id) -> Result<Option<Obj>, Rivals<Id>>` (two or more founding rows held
+under the id: `Rivals`, concluding nothing) and `seat::group_at` (a reference naming a row of one chain resolves
+to it). The crate resolves no such reference itself; the caller calls it (ADOPTING.md). Seven cases in
+`check_acts.py` GROUP_OF (two founding records under one id; a trust edge by that id concludes nothing; a row at
+the head of one concludes on that chain), plant `group_first_founding`, replayed by `tests/acts.rs`
+(`group_of_replay`).
 
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.

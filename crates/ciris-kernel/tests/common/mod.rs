@@ -304,6 +304,7 @@ pub struct TRow {
     pub cohort_subkind: Option<String>,
     pub group_kind: Option<String>,
     pub bundle: Option<String>,
+    pub group_id: Option<String>,
     pub role: Option<String>,
     pub admission_quorum_basis: Option<String>,
     pub counted: Option<String>,
@@ -402,6 +403,7 @@ impl TRow {
             cohort_subkind: opt(&m, "cohort_subkind"),
             group_kind: opt(&m, "group_kind"),
             bundle: opt(&m, "bundle"),
+            group_id: opt(&m, "group_id"),
             role: opt(&m, "role"),
             admission_quorum_basis: opt(&m, "admission_quorum_basis"),
             counted: opt(&m, "counted"),
@@ -535,6 +537,9 @@ impl SeatRow for TRow {
     }
     fn bundle(&self) -> Option<&String> {
         self.bundle.as_ref()
+    }
+    fn group_id(&self) -> Option<&String> {
+        self.group_id.as_ref()
     }
     fn role(&self) -> Option<&String> {
         self.role.as_ref()

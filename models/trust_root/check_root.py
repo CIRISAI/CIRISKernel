@@ -798,6 +798,118 @@ def run_recovery():
             for got in [recovery_answer(rows, bs, gs, rd)] if got != (c, why, f4)]
 
 
+# Re-asking on the row a wait names (ADOPTING.md, "Re-asking"): the store holds a row that waits and asks again only
+# when the row the answer names arrives. (name, fold rows, root read?, root bundles, root grants, reader, the row asked,
+# the answer with every row held.) Each case runs in several arrival orders of its fold rows and root rows together;
+# after each arrival the row asked is: not offered; offered and lacking the ids it names that are not held
+# (causal_kernel.arrive, the crate's Held::lacks); or kept, and then True, False, or ("waits", x) (seat.seat_rule_why).
+WAITS = [
+    ("stalled, no trust root read: the widening waits on the grant it names, whatever the fold holds",
+     STALLED + [RCV()], False, [], [], None, "rv", ("waits", "B1")),
+    ("stalled, a root read: it waits on the grant, then on the reader's anchor b0, and concludes when both are held",
+     STALLED + [RCV()], True, [B0], [GOK], ANC, "rv", True),
+    ("a grant on b1, a bundle not held: it waits on b1, and concludes when b1 arrives",
+     STALLED + [RCV()], True, LIN[:2], [GR("B1", "b1", "f4", "g", ("h1", "h2", "h3"))], RD(anchor="b0", acks=("b1",)),
+     "rv", True),
+    ("against: the grant names another room; with every row held the widening concludes nothing, and waits on nothing",
+     STALLED + [RCV()], True, [B0], [dict(GOK, scope="other")], ANC, "rv", False),
+    ("against: a live room (no founder left); the widening concludes nothing, waiting on no row in any order",
+     [GI, RCV(names=("g",))], True, [B0], [GOK], ANC, "rv", False),
+]
+WAITS_PLANTS = (("seat", "waits_names_nothing"), ("root", "waits_on_grant"), ("root", "waits_anchor_unread"),
+                ("kernel", "lacks_first_only"))
+WAITS_ORDERS = 12      # arrival orders per case, at most
+
+
+def waits_orders(n, fold):
+    """The given order, its reverse, the fold rows first with the root's rows in every order, then evenly spaced
+    permutations of all of them."""
+    import itertools
+    out = [tuple(range(n)), tuple(reversed(range(n)))]
+    out += [tuple(range(fold)) + p for p in itertools.permutations(range(fold, n))]
+    ps = list(itertools.permutations(range(n)))
+    out += ps[::max(1, len(ps) // WAITS_ORDERS)]
+    seen = []
+    for o in out:
+        if o not in seen: seen.append(o)
+    return seen[:WAITS_ORDERS]
+
+
+def waits_items(rows, bs, gs):
+    return [("row", r) for r in rows] + [("bundle", b) for b in bs] + [("grant", g) for g in gs]
+
+
+def waits_answer(items, root, rd, rid):
+    """The row asked, over the items held: None (not offered), ("lacks", ids), or the seat rule's answer."""
+    rows = [x for k, x in items if k == "row"]
+    if rid not in {r["id"] for r in rows}: return None
+    A = CK.arrive(rows, lambda r, P, past: True)
+    if rid in A.waiting: return ("lacks", tuple(A.waiting[rid]))
+    view = (RT.Root([x for k, x in items if k == "bundle"], (), [x for k, x in items if k == "grant"]), rd) if root else None
+    ST.ROOT.append(view)
+    try:
+        S = CK.concluded(CK.kept([r for r in rows if r["id"] in A.by]), lambda r, P, past: ST.seat_rule(r, P, past))
+        P = [q for q in S.Cs if q["id"] in S.anc[rid]]
+        return ST.seat_rule_why(S.by[rid], P, lambda a, b: a in S.anc[b])
+    finally:
+        ST.ROOT.pop()
+
+
+def waits_traces(case):
+    name, rows, root, bs, gs, rd, rid, want = case
+    items = waits_items(rows, bs, gs)
+    return [(o, [waits_answer([items[i] for i in o[:k + 1]], root, rd, rid) for k in range(len(o))])
+            for o in waits_orders(len(items), len(rows))]
+
+
+def waits_named(a):
+    return set(a[1]) if a[0] == "lacks" else {a[1]}
+
+
+def waits_held(items):
+    """The ids held after these arrivals: the root's rows, and the fold rows kept (a row offered that waits is not
+    held)."""
+    rows = [x for k, x in items if k == "row"]
+    return {x["id"] for k, x in items if k != "row"} | set(CK.arrive(rows, lambda r, P, past: True).by)
+
+
+def run_waits():
+    """The contract a store relies on, over every order of every case: (1) with every row held the answer is the
+    case's; (2) a wait names only rows not held, and a row offered lacks exactly the ids it names that are not held;
+    (3) a wait is unchanged by an arrival that makes none of the rows it names held (a row kept on another's arrival,
+    released by it, is held by that arrival: the crate's Admitted::kept); (4) a True or False stays as it is."""
+    bad = []
+    for case in WAITS:
+        name, rows, root, bs, gs, rd, rid, want = case
+        items = waits_items(rows, bs, gs)
+        r = next(x for x in rows if x["id"] == rid)
+        for o, tr in waits_traces(case):
+            where = "waits %s, order %s" % (name, "".join(map(str, o)))
+            if tr[-1] != want: bad.append("%s: with every row held got %s" % (where, tr[-1]))
+            held = [waits_held([items[i] for i in o[:k + 1]]) for k in range(len(o))]
+            for k, a in enumerate(tr):
+                if isinstance(a, tuple):
+                    if waits_named(a) & held[k]: bad.append("%s: after %d, %s names a row held" % (where, k + 1, a))
+                    if a[0] == "lacks" and set(a[1]) != {n for n in r["names"] if n not in held[k]}:
+                        bad.append("%s: after %d, lacks %s" % (where, k + 1, a[1]))
+                if k + 1 < len(tr):
+                    new = held[k + 1] - held[k]
+                    if isinstance(a, tuple) and not (waits_named(a) & new) and tr[k + 1] != a:
+                        bad.append("%s: %s changed on %s, none of it a row it names" % (where, a, sorted(new)))
+                    if isinstance(a, bool) and tr[k + 1] != a:
+                        bad.append("%s: %s changed on %s" % (where, a, sorted(new)))
+    return bad
+
+
+def waits_planted(where, plant):
+    mut = {"seat": ST.MUT, "root": RT.MUT, "kernel": CK.MUT}[where]
+    mut.add(plant)
+    try:
+        return run_waits()
+    finally:
+        mut.discard(plant)
+
+
 PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "bound_unread", "version_unread",
           "family_unread", "commitments_unread", "recovery_other_seat", "spent_unread", "fold_common", "fold_union",
           "charter_folds", "anchor_unread", "inforce_global", "root_sf_unread", "root_t_unread",
@@ -940,11 +1052,26 @@ def fixture(with_refs):
                     "reader": renc(rd), "concluded": c, "reason": why, "f4": f4})
     sub = [{"name": n, "bundles": [benc(b) for b in bs], "grants": [genc(g) for g in gs], "reader": renc(rd),
             "grant": gid, "sub_delegation": want} for n, bs, gs, rd, gid, want in SUB_CASES]
-    return {"cases": cases, "recovery": rec, "sub_delegation": sub}
+    waits = []
+    for case in WAITS:
+        name, rows, root, bs, gs, rd, rid, want = case
+        refs = {}
+        items = [{"row": rows.index(x)} if k == "row" else {"bundle": benc(x)} if k == "bundle" else {"grant": genc(x)}
+                 for k, x in waits_items(rows, bs, gs)]
+        waits.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "root": root, "items": items,
+                      "reader": renc(rd), "row": rid,
+                      "orders": [{"order": list(o), "trace": [wenc(a) for a in tr]} for o, tr in waits_traces(case)]})
+    return {"cases": cases, "recovery": rec, "sub_delegation": sub, "waits": waits}
+
+
+def wenc(a):
+    """An answer of the waits trace, for the crate: null (not offered), {"lacks": ids}, {"waits": id}, or a bool."""
+    if a is None or isinstance(a, bool): return a
+    return {"lacks": list(a[1])} if a[0] == "lacks" else {"waits": a[1]}
 
 
 def main():
-    bad = run() + run_recovery() + run_sub()
+    bad = run() + run_recovery() + run_sub() + run_waits()
     for b in bad: print(b)
     missed = []
     for p in PLANTS:
@@ -965,10 +1092,16 @@ def main():
             ST.MUT.discard(p)
         print("  plant %-22s %s" % (p, ("caught by: " + hit[:90]) if hit else "NOT CAUGHT"))
         if not hit: missed.append(p)
+    for where, p in WAITS_PLANTS:
+        hit = waits_planted(where, p)
+        print("  plant %-22s %s" % (p, ("caught by: " + hit[0][:90]) if hit else "NOT CAUGHT"))
+        if not hit: missed.append(p)
     ok = not bad and not missed
-    n = len(PLANTS) + len(RECOVERY_PLANTS)
-    print("RESULT: %s: %d cases, %d of stalled recovery, %d of %d planted breaks caught" % (
-        "ok" if ok else "%d problems" % (len(bad) + len(missed)), len(CASES), len(RECOVERY), n - len(missed), n))
+    n = len(PLANTS) + len(RECOVERY_PLANTS) + len(WAITS_PLANTS)
+    orders = sum(len(waits_orders(len(waits_items(c[1], c[3], c[4])), len(c[1]))) for c in WAITS)
+    print("RESULT: %s: %d cases, %d of stalled recovery, %d of waiting (%d arrival orders), %d of %d planted breaks caught" % (
+        "ok" if ok else "%d problems" % (len(bad) + len(missed)), len(CASES), len(RECOVERY), len(WAITS), orders,
+        n - len(missed), n))
     return 0 if ok else 1
 
 

@@ -234,6 +234,12 @@ pub trait SeatRow: Row {
     fn bundle(&self) -> Option<&Self::Id> {
         None
     }
+    /// A group's founding record: the id it declares for the group, which a reference naming the group by id
+    /// alone names ([`group_of`]). A founding row is its group's object by its own digest whatever it declares.
+    /// Default `None`: the row declares none.
+    fn group_id(&self) -> Option<&Self::Id> {
+        None
+    }
     /// An admission's role: `founder` on an offer of the member seat over a family seats the founder role too (a
     /// family's one-row founder admission, F1); on a change of an infrastructure community's record (scope
     /// `record`), the keys it names are seated as founders (a founders' amendment, CC 3.1.3.2). Default `None`.
@@ -1157,8 +1163,19 @@ pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,
 ) -> Option<&'static str> {
+    stalled_recovery_waits(p, law, spec).map(|_| "stalled_recovery_needs_bundle")
+}
+
+/// [`stalled_recovery`], naming the row it waits on: the grant the widening names ([`SeatRow::bundle`]), where
+/// `p.row()` is a stalled room's recovery widening; `None` where [`stalled_recovery`] is `None`.
+pub fn stalled_recovery_waits<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+) -> Option<crate::Wait<R::Id>> {
     let r = p.row();
-    if r.seat_kind() != SeatKind::Offer || r.bundle().is_none() || r.scope().is_none_or(|s| s.as_ref() != "founder") {
+    let b = r.bundle()?;
+    if r.seat_kind() != SeatKind::Offer || r.scope().is_none_or(|s| s.as_ref() != "founder") {
         return None;
     }
     let obj = r.obj()?;
@@ -1172,7 +1189,7 @@ pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
         return None;
     };
     let founders = founders_at(p, law, spec).len() as u64;
-    (founders < m + 1).then_some("stalled_recovery_needs_bundle")
+    (founders < m + 1).then(|| crate::Wait(b.clone()))
 }
 
 /// A stalled infrastructure room's recovery widening (CC 3.2), judged against the trust root this node reads
@@ -1186,33 +1203,46 @@ pub fn recovery_verdict<R: SeatRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,
 ) -> Result<(), &'static str> {
-    let Some(view) = spec.trust_root() else { return Err("stalled_recovery_needs_bundle") };
+    recovery_judged(p, law, spec).map_err(|(why, _)| why)
+}
+
+/// [`recovery_verdict`], with the row a refusal waits on: with no trust root read, the grant a stalled widening
+/// names ([`stalled_recovery_waits`]); with one, the row the root reading does not hold
+/// ([`crate::root::RootView::waits_on`]) where the refusal is the grant's.
+fn recovery_judged<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+) -> Result<(), (&'static str, Option<R::Id>)> {
+    let Some(view) = spec.trust_root() else {
+        return Err(("stalled_recovery_needs_bundle", stalled_recovery_waits(p, law, spec).map(|w| w.0)));
+    };
     let r = p.row();
-    let Some(obj) = r.obj() else { return Err("not_a_recovery") };
+    let Some(obj) = r.obj() else { return Err(("not_a_recovery", None)) };
     let get = |i: &R::Id| p.get(i);
     if r.seat_kind() != SeatKind::Offer
         || r.scope().is_none_or(|s| s.as_ref() != "founder")
         || kind_of(law, &get, &obj) != Some(CommunityKind::Infrastructure)
     {
-        return Err("not_a_recovery");
+        return Err(("not_a_recovery", None));
     }
-    let Some(rec) = protocol_record(p, &obj) else { return Err("not_a_recovery") };
+    let Some(rec) = protocol_record(p, &obj) else { return Err(("not_a_recovery", None)) };
     let Some(RoomProtocol::Quorum(m, _)) =
         rec.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), true))
     else {
-        return Err("not_a_recovery");
+        return Err(("not_a_recovery", None));
     };
     if r.to().len() != 1 || r.consensus_protocol().is_some() || !r.cosigners().is_empty() {
-        return Err("recovery_changes_more");
+        return Err(("recovery_changes_more", None));
     }
     let founders = founders_at(p, law, spec).len() as u64;
     if founders >= m + 1 {
-        return Err("not_stalled");
+        return Err(("not_stalled", None));
     }
-    let Some(gid) = r.bundle() else { return Err("not_a_recovery") };
-    let named = view.recovery_grant(gid, &obj)?;
+    let Some(gid) = r.bundle() else { return Err(("not_a_recovery", None)) };
+    let named = view.recovery_grant(gid, &obj).map_err(|why| (why, view.waits_on(gid)))?;
     if r.to()[0] != named || *r.signer() != named {
-        return Err("not_signed_by_named_key");
+        return Err(("not_signed_by_named_key", None));
     }
     Ok(())
 }
@@ -3882,7 +3912,7 @@ pub fn for_reader<'a, R: SeatRow, S: CutSpec<R>>(
             if p.row().merge() {
                 return c.g.idx(p.row().id()).is_some_and(|i| c.cs().contains(&i));
             }
-            seat_rule_with(p, law, spec, &|_| true, Some(&cache))
+            seat_rule_with(p, law, spec, &|_| true, Some(&cache), None)
         },
         None,
     );
@@ -4787,7 +4817,118 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
     spec: &S,
     other: &dyn Fn(&Past<'_, '_, R>) -> bool,
 ) -> bool {
-    seat_rule_with(p, law, spec, other, None)
+    seat_rule_with(p, law, spec, other, None, None)
+}
+
+/// [`seat_rule`], telling a row that waits from one that concludes nothing: `Ok` the rule's answer over the rows
+/// read, or `Err(Wait(x))` where it concludes nothing only for want of row `x`, which the caller does not hold
+/// ([`crate::Wait`]). The rule over a kept row reads only its concluded ancestors, which no arrival changes; the one
+/// read outside them is the trust root's, for a stalled room's recovery widening ([`recovery_verdict`]): with no
+/// trust root read it waits on the grant it names ([`stalled_recovery_waits`]); with one, on the row the reading
+/// lacks ([`crate::root::RootView::waits_on`]). `Ok(false)` concludes nothing with all it reads held.
+pub fn seat_rule_why<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    other: &dyn Fn(&Past<'_, '_, R>) -> bool,
+) -> Result<bool, crate::Wait<R::Id>> {
+    let w = RefCell::new(None);
+    let v = seat_rule_with(p, law, spec, other, None, Some(&w));
+    match (v, w.into_inner()) {
+        (false, Some(x)) => Err(crate::Wait(x)),
+        (v, _) => Ok(v),
+    }
+}
+
+/// The founding rows a reference by id alone names, where more than one is held under the id: ascending, each
+/// once ([`group_of`]). Not a [`crate::Wait`]: every rival is held, so no arrival settles it; a reference that names
+/// a row of one chain (its founding row's digest, or a row at a head of it: [`group_at`]) does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Rivals<I>(pub Vec<I>);
+
+/// The group a reference naming it BY ID ALONE resolves to among `rows` (an acceptance edge to a community, a
+/// licence's authority, `overseen_by`, a root grant's room token, a listing's group: the Constitution's ruling that
+/// such a reference never picks between two founding rows). The founding rows held under `gid` are those whose
+/// own digest is `gid` or that declare it ([`SeatRow::group_id`]). Exactly one: its object, `Obj::Row` of its
+/// digest. Two or more: [`Rivals`], and the reference concludes nothing. None held: `Ok(None)`.
+///
+/// The crate resolves no reference by id itself: [`crate::trust`] walks keys, and a root grant's scope is compared
+/// as a row digest ([`crate::root::RootReading`]). A caller that holds such a reference as a group id resolves it
+/// here first, and reads nothing through it while it is [`Rivals`].
+pub fn group_of<'r, R: SeatRow + 'r>(
+    rows: impl IntoIterator<Item = &'r R>,
+    gid: &R::Id,
+) -> Result<Option<ObjOf<R>>, Rivals<R::Id>> {
+    let mut held: Vec<R::Id> = rows
+        .into_iter()
+        .filter(|r| founding(*r) && (r.id() == gid || r.group_id() == Some(gid)))
+        .map(|r| r.id().clone())
+        .collect();
+    held.sort_unstable();
+    held.dedup();
+    match held.len() {
+        0 => Ok(None),
+        1 => Ok(Some(Obj::Row(held.remove(0)))),
+        _ => Err(Rivals(held)),
+    }
+}
+
+/// The group a reference naming a row of its chain resolves to: the object of held row `head` (a founding row is
+/// its own), whatever other founding rows share its declared id. `None` where `head` is not held or carries no object.
+pub fn group_at<'r, R: SeatRow + 'r>(get: &dyn Fn(&R::Id) -> Option<&'r R>, head: &R::Id) -> Option<ObjOf<R>> {
+    get(head)?.obj()
+}
+
+/// An infrastructure room's liveness (CC 3.2, "Live and stalled"), as [`infra_live`] reads it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Liveness {
+    /// Its active founders number at least M + 1: its founders' count admits and removes.
+    Live,
+    /// Fewer: its founders admit and remove nothing, and only the recovery widening adds a founder.
+    Stalled {
+        /// The active founders: the `founder` seats held there, less those whose leaving is in the row's past.
+        active: usize,
+        /// The record's M.
+        m: u64,
+    },
+}
+
+/// Infrastructure room `obj`'s liveness at held row `at`: the `founder` seats at `at` as a head (read from the
+/// concluded rows at or before it), less the keys whose leaving is among them, against the M of the record in force
+/// there ([`protocol_record`]): the count the seat rule reads for "stalled" ([`stalled_recovery`]), at any row the
+/// caller asks about. `None` where `at` is not held or not concluded, or `obj` is no infrastructure room there with
+/// a quorum word.
+pub fn infra_live<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    at: &R::Id,
+) -> Option<Liveness> {
+    let g = &c.g;
+    let i = g.idx(at)?;
+    if !c.concluded(i) {
+        return None;
+    }
+    let all = c.all();
+    let mut anc: Vec<usize> = g.ancestors(i).iter().filter(|&q| all[q]).collect();
+    anc.push(i);
+    anc.sort_unstable();
+    let p = Past::new(g, i, &anc);
+    let get = |x: &R::Id| p.get(x);
+    if kind_of(law, &get, obj) != Some(CommunityKind::Infrastructure) {
+        return None;
+    }
+    let rec = protocol_record(&p, obj)?;
+    let Some(RoomProtocol::Quorum(m, _)) = RoomProtocol::parse_in(rec.consensus_protocol()?.as_ref(), true) else {
+        return None;
+    };
+    let mut active = persons_at_with(&p, law, spec, obj, core::slice::from_ref(at), "founder", None);
+    for k in left_in_past(&p, obj, "founder") {
+        active.remove(&k);
+    }
+    let active = active.len();
+    Some(if active as u64 >= m + 1 { Liveness::Live } else { Liveness::Stalled { active, m } })
 }
 
 /// Conclude every kept row by [`seat_rule`] (`other` for a row the seat does not read; `root` as in
@@ -4805,7 +4946,7 @@ pub fn conclude<'a, R: SeatRow, S: CutSpec<R>>(
     root: Option<&dyn Fn(&R) -> bool>,
 ) -> Concluded<'a, R> {
     let cache = MembersAt::<R>::default();
-    crate::layers::conclude(kept_rows, |p| seat_rule_with(p, law, spec, other, Some(&cache)), root)
+    crate::layers::conclude(kept_rows, |p| seat_rule_with(p, law, spec, other, Some(&cache), None), root)
 }
 
 /// The members at a head, kept per (sorted heads, object, scope) for one [`conclude`].
@@ -5415,6 +5556,7 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
     spec: &S,
     other: &dyn Fn(&Past<'_, '_, R>) -> bool,
     cache: Option<&MembersAt<R>>,
+    waits: Option<&RefCell<Option<R::Id>>>,
 ) -> bool {
     let r = p.row();
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
@@ -5508,7 +5650,11 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     // an infrastructure room's recovery widening while stalled: judged against the trust root this
                     // node reads ([`recovery_verdict`]); with none read, undecided ([`stalled_recovery`])
                     if r.bundle().is_some() {
-                        return recovery_verdict(p, law, spec).is_ok();
+                        let v = recovery_judged(p, law, spec);
+                        if let (Err((_, Some(x))), Some(w)) = (&v, waits) {
+                            *w.borrow_mut() = Some(x.clone());
+                        }
+                        return v.is_ok();
                     }
                     // H2: a counted row is counted over its own object; one stating another concludes nothing
                     if r.over().is_some_and(|o| o != obj) {
