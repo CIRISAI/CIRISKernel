@@ -36,6 +36,7 @@ attack	K10 a row signed after its key's held end	HOLDS	facts hold
 attack	K11 a row, a rotation or a record placed exactly at an end	HOLDS	facts hold
 attack	K12 an ended key's late vote, cited by a friendly member's live row (the count reads the end rule, never the cite)	HOLDS	facts hold
 attack	K13 an expired key's in-time vote, counted and settled, compacted to a stub	HOLDS	facts hold
+attack	K14 the stub pin: a stub keeping ONLY its header (id, kind, signer), names, at and conclusion gives the same counts	HOLDS	facts hold
 plant	end_closed	caught
 plant	stub_drops_counted	caught
 plant	ended_vote_retained_by_cite	caught

@@ -721,9 +721,20 @@ def key_end_cases():
                         "ret": sorted(i for i, _, _ in a["rows"]), "bytes": sorted(a["bytes"])})
         worlds.append({"rows": [ref(r) for r in rows], "kept": [r["id"] for r in S.rows],
                        "c": [S.C[r["id"]] for r in S.rows], "a": ans})
+    # the stub pin (K14): the counted statements as stubs keeping only id, signer, names and at (kind `stub`, which
+    # concludes as it did), and every counts_by answer over the full rows
+    rows = [CKE.pX, KE.rec("pK", "K", 0, 9), KE.rec("pF", "F", 0, 9), KE.att("a0", "K", 2, "pK", about="X"),
+            KE.att("a1", "K", 4, "pK", about="X"), KE.att("f1", "F", 5, "pF", about="Y", names=("a1",)),
+            KE.revoke("vK", "K", 3, names=("a0",)), KE.rec("qF", "F2", 6, 9, names=("pF",), succ_of="F", at_old=6, typ="node")]
+    S = KE.state(rows)
+    assert all(S.C.get(r["id"]) for r in rows if r["kind"] == "att")
+    stubs = [{"id": r["id"], "kind": "stub", "signer": r["signer"], "names": r["names"], "at": r["at"], "family": "stub"}
+             if r["kind"] == "att" else r for r in rows]
+    pin = {"rows": [row_enc(r) for r in rows], "stubs": [row_enc(r) for r in stubs],
+           "answers": [[r["id"], k, KE.counts_by(S, r["id"], k)] for r in rows for k in ("K", "F", "X")]}
     return {"ceil": KE.CEIL, "keys": list(CKE.KEYS), "parties": list(CKE.PARTIES), "subjects": list(CKE.SUBJECTS),
             "nows": list(CKE.NOWS), "required": sorted(KE.END_REQUIRED), "forbidden": sorted(KE.END_FORBIDDEN),
-            "pool": pool, "worlds": worlds}
+            "pool": pool, "worlds": worlds, "pin": pin}
 
 
 def undecided_cases(AC):

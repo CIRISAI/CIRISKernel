@@ -11,7 +11,12 @@ none every voice counts (a caller with no key lane). Cases in `check_key_view.py
 (replayed by `tests/key_view.rs`); plants `key_view_unread`, `cosigner_key_unchecked`, crate twins. Every lane that
 counts a voter reads the same key view: a window's answers (`window`) and an election's ballots (`seat::election`) too
 (plants `window_key_view_unread`, `ballot_key_view_unread`). Merged with the key-person map at the voices step, the
-key view comes first (dead keys out), then persons (living keys mapped).
+key view comes first (dead keys out), then persons (living keys mapped). The lift's objections, a lone removal's
+single-key receipts and the lone act itself read it too (r86: plants `lift_key_view_unread`,
+`receipt_key_view_unread`, `lone_key_view_unread`). A row stating no instant is judged by its past alone;
+`KeyEndRow::instant` defaults to a statement's instant only (the model reads every row's `at` through `key_end.instant`,
+as the test adapter does). The stub pin (K14): a stub keeping only its header, names, `at` and conclusion gives every
+`counts_by` answer.
 
 **An ended key's row counts by the end rule, never by a cite** (the Constitution's ruling: for counts, a removed or
 ended key's late vote cited by a friendly member stays cut; only content may be anchored by others' rows).

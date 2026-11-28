@@ -22,6 +22,8 @@ import key_end as KE  # noqa: E402
 import check_count_heads as CH  # noqa: E402
 import check_election as EL  # noqa: E402
 import window as WN  # noqa: E402
+import check_agent_removal as AR  # noqa: E402
+import check_removal_in_force as RF  # noqa: E402
 
 CK = ST.CK
 RULE = CH.RULE
@@ -91,6 +93,43 @@ CASES = [
 ]
 
 
+# r86 (review-51b): the lift's objections, a lone removal's single-key receipts, and a lone act, each by the end rule.
+# (name, seat rows, key rows, key view on?, probe: the row whose conclusion is read (or None), the seat asked,
+#  expected (concluded, stands))
+LREC = [KE.rec("k" + k, k, 0, None, typ="pseudonym") for k in ("m1", "m2", "MOD", "AG", "p1", "p2", "p3")]
+LIFT = AR.A + [AR.XA, AR.O1, AR.O2, AR.RSA]
+R2 = RF.receipt("r2", "p2", "x")
+LONE = [
+    ("K2e: a lift objection by a key revoked late: m2's revocation holds the room up to lm, not its objection o2: o2 "
+     "drops, the re-seating rs concludes nothing and AG stays removed", LIFT,
+     LREC + [KE.revoke("v2", "m2", 0, names=("lm",))], True, "rs", (False, False)),
+    ("K2f (control): m2's revocation holds o2: the re-seating concludes", LIFT,
+     LREC + [KE.revoke("v2", "m2", 0, names=("o2",))], True, "rs", (True, True)),
+    ("and K2e with no key view: o2 counts, the re-seating concludes", LIFT,
+     LREC + [KE.revoke("v2", "m2", 0, names=("lm",))], False, "rs", (True, True)),
+    ("K3c: a single key's receipt of a lone removal by a key revoked late: p2's revocation holds xm (its withdrawal of "
+     "p1's moderate) and not its receipt r2: r2 drops, nothing keeps x in force once p1's moderate ends, AG is back",
+     RF.W + [RF.X, R2, RF.UND], LREC + [KE.revoke("v2", "p2", 0, names=("xm",))], True, None, (None, True)),
+    ("and K3c with no key view: r2 keeps x in force", RF.W + [RF.X, R2, RF.UND],
+     LREC + [KE.revoke("v2", "p2", 0, names=("xm",))], False, None, (None, False)),
+    ("K3e: a lone act by a revoked key: p1's revocation holds ag, not its lone removal x: x does not stand, AG stays",
+     RF.W + [RF.X], LREC + [KE.revoke("v1", "p1", 0, names=("ag",))], True, "x", (False, True)),
+    ("and K3e with no key view: x stands, AG removed", RF.W + [RF.X], LREC + [KE.revoke("v1", "p1", 0, names=("ag",))],
+     False, "x", (True, False)),
+]
+
+
+def lone_answer(seat_rows, key_rows, view, probe):
+    KS = KE.state(list(seat_rows) + list(key_rows))
+    ST.KEY_VIEW.append((lambda rid, k: KE.counts_by(KS, rid, k)) if view else None)
+    try:
+        for m in ("_READER_MEMO", "_VOID_MEMO", "_EMEMO", "_SEATS_OF"): getattr(ST, m).clear()
+        S = CK.concluded(CK.kept(list(seat_rows)), WRULE)
+        return (bool(S.C.get(probe)) if probe else None), ST.Seats(S).stands("AG", "agent", "g")
+    finally:
+        ST.KEY_VIEW.pop()
+
+
 def answer(rule, seat_rows, key_rows, view):
     KS = KE.state(list(seat_rows) + list(key_rows))
     ST.KEY_VIEW.append((lambda rid, k: KE.counts_by(KS, rid, k)) if view else None)
@@ -104,8 +143,9 @@ def answer(rule, seat_rows, key_rows, view):
 
 
 PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("window_key_view_unread", ST.MUT),
-          ("ballot_key_view_unread", ST.MUT))
-SIGNED = ("x", "cC", "c2", "be")                                   # the rows whose per-key answers the fixture carries
+          ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
+          ("lone_key_view_unread", ST.MUT))
+SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries
 
 
 def run():
@@ -113,6 +153,9 @@ def run():
     for name, rule, sr, kr, view, v, c in CASES:
         gv, gc = answer(rule, sr, kr, view)
         if gc != c or (v is not None and gv != v): bad.append("%s: got %s" % (name, (gv, gc)))
+    for name, sr, kr, view, probe, want in LONE:
+        got = lone_answer(sr, kr, view, probe)
+        if got != want: bad.append("%s: got %s" % (name, got))
     return bad
 
 
@@ -126,6 +169,13 @@ def fixture():
         per = [[rid, k, KE.counts_by(KS, rid, k)] for rid in SIGNED if rid in KS.by for k in keys]
         out.append({"name": name, "rule": rule, "seat": [r["id"] for r in sr], "rows": list(sr) + list(kr), "view": view,
                     "counts": per, "voices": sorted(v) if v is not None else None, "concluded": c})
+    for name, sr, kr, view, probe, (c, st) in LONE:
+        KS = KE.state(list(sr) + list(kr))
+        keys = sorted({q["signer"] for q in sr} | {k for q in sr for k in q.get("cosigners", ())})
+        per = [[rid, k, KE.counts_by(KS, rid, k)] for rid in SIGNED if rid in KS.by for k in keys]
+        out.append({"name": name, "rule": "window", "seat": [r["id"] for r in sr], "rows": list(sr) + list(kr),
+                    "view": view, "counts": per, "voices": None, "probe": probe, "concluded": c,
+                    "stands": ["AG", "agent", "g", st]})
     return out
 
 
@@ -143,7 +193,7 @@ def main():
         if not hit: missed.append(p)
     ok = not bad and not missed
     print("RESULT: %s: %d cases, %d of %d planted breaks caught" % ("ok" if ok else "%d problems" % (len(bad) + len(missed)),
-                                                                   len(CASES), len(PLANTS) - len(missed), len(PLANTS)))
+                                                                   len(CASES) + len(LONE), len(PLANTS) - len(missed), len(PLANTS)))
     return 0 if ok else 1
 
 

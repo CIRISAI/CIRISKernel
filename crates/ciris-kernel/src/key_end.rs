@@ -44,8 +44,12 @@ pub trait KeyEndRow: Row {
     fn revocation(&self) -> Option<(&Self::Key, Self::T)> {
         None
     }
-    /// The row's own signed instant, where it states one: a statement's, or a seat row's (read by [`counts_by`]
-    /// against a self-revocation's `revoked_after`). Default: a statement's instant.
+    /// The row's own signed instant, where it states one: a statement's, or a seat row's (read by [`counts`] and
+    /// [`counts_by`] against a self-revocation's `revoked_after`). A row stating no instant is judged by its past
+    /// alone: the `revoked_after` reaches only rows that state one. **Default: a statement's instant only**, so a
+    /// caller presenting seat rows to a [`KeyReading`] overrides this to give each row its signed instant (the
+    /// model, `key_end.instant`, reads every row's `at`, as the crate's test adapter does); left at the default, a
+    /// seat row is cut by a revocation only where it is not in the revocation's past.
     fn instant(&self) -> Option<Self::T> {
         self.statement().map(|s| s.0)
     }

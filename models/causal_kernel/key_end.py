@@ -199,6 +199,13 @@ def ends_of(S, k):
             or (r["kind"] == "rec" and r["succ_of"] == k)]
 
 
+def instant(r):
+    """A row's own signed instant, where it states one: the ONE accessor counts and counts_by read (the crate's
+    KeyEndRow::instant; the fixtures' rows give every row its `at`, as tests/common's adapter does). A row stating no
+    instant is judged by its past alone: a revocation's revoked_after reaches only rows that state an instant."""
+    return r.get("at")
+
+
 def counts(S, r):
     """THE END RULE, for every count: a concluded statement of key k counts only where it is in the causal past of
     each of k's own ends (and, for a self-revocation, its own instant before the revoked_after k stated); with no
@@ -208,7 +215,7 @@ def counts(S, r):
     if not S.C.get(r["id"]) or r["kind"] not in ("att", "edge"): return bool(S.C.get(r["id"]))
     for e in ends_of(S, r["signer"]):
         if r["id"] not in S.anc[e["id"]]: return False
-        if e["kind"] == "revoke" and not r["at"] < e["ra"]: return False
+        if e["kind"] == "revoke" and instant(r) is not None and not instant(r) < e["ra"]: return False
     return True
 
 
@@ -220,7 +227,7 @@ def counts_by(S, rid, k):
     if r is None or not S.C.get(rid): return False
     for e in ends_of(S, k):
         if rid not in S.anc[e["id"]]: return False
-        if e["kind"] == "revoke" and r.get("at") is not None and not r["at"] < e["ra"]: return False
+        if e["kind"] == "revoke" and instant(r) is not None and not instant(r) < e["ra"]: return False
     return True
 
 

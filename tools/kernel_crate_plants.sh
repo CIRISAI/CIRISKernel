@@ -576,6 +576,9 @@ plant "seat: the key view not read at the voices step (key_view_unread)" src/sea
 plant "seat: only the counted row's signer read by the key view (cosigner_key_unchecked)" src/seat.rs '.filter(|k| kv.counts(r.id(), k))' '.filter(|k| k != r.signer() || kv.counts(r.id(), k))'
 plant "window: the key view not read for answers (window_key_view_unread)" src/window.rs 'kept = answers.iter().copied().filter(|a| kv.counts(a.id(), a.signer())).collect();' 'kept = answers.iter().copied().filter(|a| kv.counts(a.id(), a.signer()) || true).collect();'
 plant "election: the key view not read for ballots (ballot_key_view_unread)" src/seat/election.rs '&& spec.key_view().is_none_or(|kv| kv.counts(b.id(), b.signer()))' '&& spec.key_view().is_none_or(|kv| kv.counts(b.id(), b.signer()) || true)'
+plant "seat: a lift objection not read by the key view (lift_key_view_unread)" src/seat.rs '&& spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()))' '&& spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()) || true)'
+plant "seat: a lone removal's single-key receipt not read by the key view (receipt_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer()) && false) {'
+plant "seat: a lone act not read by the key view (lone_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer()) && false) {'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

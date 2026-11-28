@@ -2871,6 +2871,10 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
             if !duty.contains(qr.signer()) {
                 return None;
             }
+            // a single key's receipt by the end rule, through the key view
+            if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer())) {
+                return None;
+            }
             let cut = unseats.iter().any(|(u, uo)| {
                 g.row(*u).to().contains(qr.signer())
                     && uo.as_ref() == Some(&obj)
@@ -3748,6 +3752,11 @@ fn lone_removal<R: SeatRow, S: CutSpec<R>>(
     if !agent || !members_at_with(p, law, spec, &obj, r.head(), AGENT, cache).contains(&r.to()[0]) {
         return false;
     }
+    // a lone act by a key is read through the same end rule: a revoked moderator key's late lone removal does not
+    // stand (the key view)
+    if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {
+        return false;
+    }
     // the signer holds `moderate` at the newest heads it names, read with the withdrawals in the row's own past (its
     // laying down of the seat there: members_at)
     members_at_with(p, law, spec, &obj, r.head(), "moderate", cache).contains(r.signer())
@@ -3790,7 +3799,11 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
     let mut v = BTreeSet::new();
     for n in r.names() {
         let Some(c) = p.get(n) else { continue };
-        if c.seat_kind() == SeatKind::Cosign && c.of() == Some(rem.id()) {
+        // each objection by the end rule, through the key view
+        if c.seat_kind() == SeatKind::Cosign
+            && c.of() == Some(rem.id())
+            && spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()))
+        {
             v.insert(c.signer().clone());
         }
     }

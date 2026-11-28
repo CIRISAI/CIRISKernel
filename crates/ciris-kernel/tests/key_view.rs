@@ -7,7 +7,7 @@ mod common;
 use ciris_kernel::cut::CutSpec;
 use ciris_kernel::key_end::{conclude_rule, counts_by, KeyReading, KeyView};
 use ciris_kernel::layers::{conclude, kept, Past};
-use ciris_kernel::seat::{seat_rule, voices_with, SeatLaw};
+use ciris_kernel::seat::{seat_rule, voices_with, Obj, SeatLaw, Seats};
 use ciris_kernel::window::{self, WindowSpec};
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -88,14 +88,25 @@ fn key_view_cases() {
             },
             None,
         );
-        let x = sc.g.idx(&"x".to_string()).expect("x");
+        // the row whose conclusion is read (x, or the case's probe), and a seat asked
+        let probe = c.get("probe").map(|p| p.opt_s()).unwrap_or(Some("x".into()));
+        if let Some(pr) = &probe {
+            let i = sc.g.idx(pr).expect("the probe");
+            cmp(sc.concluded(i) == c.at("concluded").b(), format!("{pr} concluded"));
+        }
+        if let Some(st) = c.get("stands") {
+            let a = st.arr();
+            let q = Seats::new(&sc, &law, &spec, None);
+            let got = q.stands(&a[0].s().to_string(), a[1].s(), &Obj::Row(a[2].s().to_string()), None);
+            cmp(got == a[3].b(), format!("{} stands in {} over {}", a[0].s(), a[1].s(), a[2].s()));
+        }
+        let Some(x) = sc.g.idx(&"x".to_string()) else { continue };
         if let Some(want) = c.get("voices").filter(|v| !v.is_null()) {
             let anc: Vec<usize> = sc.cs().iter().copied().filter(|&q| sc.g.in_past(q, x)).collect();
             let p = Past::new(&sc.g, x, &anc);
             let v: Vec<String> = voices_with(sc.g.row(x), &p, &spec).into_iter().collect();
             cmp(v == want.strs(), format!("voices of x: {v:?}"));
         }
-        cmp(sc.concluded(x) == c.at("concluded").b(), "x concluded".into());
     }
     report("the key view (check_key_view.py)", cases, bad);
     assert_eq!(bad, 0);

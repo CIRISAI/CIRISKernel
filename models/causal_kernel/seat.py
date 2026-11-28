@@ -1048,6 +1048,10 @@ def lone_removal(r, P, past):
     # restores_unseated, the same break seen from the lift)
     if not MUT & {"lone_any_key", "restores_unseated"} and r["to"][0] not in members_at(P, past, r["obj"], heads, AGENT):
         return False
+    # a lone act by a key is read through the same end rule: a revoked moderator key's late lone removal does not
+    # stand (the key view; MUTATION lone_key_view_unread)
+    kv = KEY_VIEW[-1] if "lone_key_view_unread" not in MUT else None
+    if kv is not None and not kv(r["id"], r["signer"]): return False
     # the signer holds `moderate` at the newest heads it names, read with the withdrawals in the row's own past (its
     # laying down of the seat there: members_at, MUTATION ends_at_heads_unread)
     return r["signer"] in members_at(P, past, r["obj"], heads, "moderate")
@@ -1062,8 +1066,10 @@ def lift_voices(r, P, past, by):
     # so it no longer names the removal's head (its base, the members at both heads, is roster-kinds' follow-up)
     if (rem["obj"], rem["scope"], tuple(rem["to"])) != (r["obj"], r["scope"], tuple(r["to"])):
         return None
+    # each objection by the end rule, through the key view (MUTATION lift_key_view_unread: every objection counts)
+    kv = KEY_VIEW[-1] if "lift_key_view_unread" not in MUT else None
     v = frozenset(a["signer"] for a in P if a["kind"] == "answer" and a.get("of") == rem["id"] and a.get("says") == "object"
-                  and a["id"] in r["names"])
+                  and a["id"] in r["names"] and (kv is None or kv(a["id"], a["signer"])))
     return v if "author_voice" in MUT else v - {rem["signer"]}      # MUTATION author_voice: the author's objection counts
 
 
@@ -2020,6 +2026,9 @@ def receipts_of(S, x, duty, unseats, not_ends):
             elif "failed_count_is_signers" in MUT and q["signer"] in duty: out.append((q, False))   # MUTATION
             continue
         if q["signer"] not in duty: continue
+        # a single key's receipt by the end rule, through the key view (MUTATION receipt_key_view_unread)
+        kv = KEY_VIEW[-1] if "receipt_key_view_unread" not in MUT else None
+        if kv is not None and not kv(q["id"], q["signer"]): continue
         cut = any(q["signer"] in u["to"] and u.get("obj") == x["obj"] and u["id"] not in not_ends
                   and q["id"] not in S.anc[u["id"]] and ("receipt_before_kept" not in MUT or u["id"] not in S.anc[q["id"]])
                   and holds_roster(S, u, q["signer"], x["obj"], u["scope"])

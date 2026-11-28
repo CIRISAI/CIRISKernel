@@ -551,6 +551,26 @@ def k13():
              ("the stubbed vote still counts", KE.score(Cs, "X", 9) == {"K"})])
 
 
+@attack("K14 the stub pin: a stub keeping ONLY its header (id, kind, signer), names, at and conclusion gives the same counts")
+def k14():
+    rows = [pX, rec("pK", "K", 0, 9), rec("pF", "F", 0, 9), att("a0", "K", 2, "pK", about="X"),
+            att("a1", "K", 4, "pK", about="X"), att("f1", "F", 5, "pF", about="Y", names=("a1",)),
+            revoke("vK", "K", 3, names=("a0",)), rec("qF", "F2", 6, 9, names=("pF",), succ_of="F", at_old=6)]
+    S = KE.state(rows)
+    keep = ("id", "kind", "signer", "names", "at", "family")
+    pin = [dict({k: r[k] for k in keep if k in r}, stub=True, concl=bool(S.C.get(r["id"])))
+           if r["kind"] in ("att", "edge") else r for r in rows]
+    P = KE.state(pin)
+    same = all(KE.counts_by(S, r["id"], k) == KE.counts_by(P, r["id"], k) for r in rows for k in ("K", "F", "X"))
+    return ("HOLDS", "nobody",
+            "what a count reads of a row is its header, its names, its instant and its conclusion: a stub keeping only "
+            "those (the bytes, its cover and every other field dropped) gives every per-(row, key) answer of the end rule",
+            [("every counts_by answer over the pinned stubs equals the full rows'", same),
+             ("the in-time vote in the revocation's past counts, stubbed", KE.counts_by(P, "a0", "K")),
+             ("the late vote does not, stubbed", not KE.counts_by(P, "a1", "K")),
+             ("F's vote outside its rotation's past does not, stubbed", not KE.counts_by(P, "f1", "F"))])
+
+
 def stub_plant():
     KE.MUT.add("stub_drops_counted")
     try:
