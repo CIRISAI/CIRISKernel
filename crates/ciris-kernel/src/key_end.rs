@@ -234,6 +234,32 @@ pub fn voided<R: KeyEndRow>(c: &Concluded<'_, R>, rot: usize, roster: &BTreeSet<
     })
 }
 
+/// The self roster's voids of a rotation of `k` (ids of `roster`, as [`voided`] reads them) where a revocation of `k`
+/// (either form) is held: together they are `k`'s end against every later rotation of `k` that does not have the void
+/// in its past (TR1v2, ruled on r118). `key_end.closing_voids`.
+pub fn closing_voids<R: KeyEndRow + SeatRow>(c: &Concluded<'_, R>, k: &R::Key, roster: &BTreeSet<R::Id>) -> Vec<usize> {
+    let revoked = c.cs().iter().any(|&q| {
+        let r = c.g.row(q);
+        (r.signer() == k && r.revocation().is_some_and(|(rk, _)| rk == k)) || crate::seat::registered_self_unseat(r, k)
+    });
+    if !revoked {
+        return Vec::new();
+    }
+    let rots: Vec<usize> =
+        c.cs().iter().copied().filter(|&e| c.g.row(e).record().is_some_and(|x| x.succ_of == Some(k))).collect();
+    roster
+        .iter()
+        .filter_map(|e| c.g.idx(e))
+        .filter(|&e| {
+            let q = c.g.row(e);
+            rots.iter().any(|&r| {
+                let rr = c.g.row(r);
+                rr.record().is_some_and(|x| q.roster_end() == Some(x.key)) && q.names().contains(rr.id())
+            })
+        })
+        .collect()
+}
+
 /// Whether a revocation of key `k` (either form) is an end of `k` against `k`'s unvoided rotations `rots` (the
 /// Constitution's ruling (1) on r114): none while a rotation stands, in the revocation's past or concurrent with it,
 /// so the key's history counts. A rotation with the revocation in ITS past concludes nothing ([`conclude_rule`]), so
@@ -257,13 +283,21 @@ pub fn revocation_stands(rots: &[usize]) -> bool {
 ///
 /// The residual, stated: a person with ONE key (a self roster of one), whose key is stolen, cannot be told from the
 /// thief: the thief can rotate or revoke it as the owner could, and no roster can void a rotation.
-pub fn ends<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, roster: &BTreeSet<R::Id>) -> Vec<(usize, Option<R::T>)> {
-    let rots: Vec<usize> = c
+pub fn ends<R: KeyEndRow + SeatRow>(
+    c: &Concluded<'_, R>,
+    k: &R::Key,
+    roster: &BTreeSet<R::Id>,
+) -> Vec<(usize, Option<R::T>)> {
+    let mut rots: Vec<usize> = c
         .cs()
         .iter()
         .copied()
         .filter(|&e| c.g.row(e).record().is_some_and(|x| x.succ_of == Some(k)) && !voided(c, e, roster))
         .collect();
+    // TR1v2 (ruled on r118): once the roster has voided a rotation of k and a revocation of k is held, the void and
+    // the revocation are k's end: a rotation of k without that void in its past retires nothing
+    let closing = closing_voids(c, k, roster);
+    rots.retain(|&r| closing.iter().all(|&v| c.g.in_past(v, r)));
     let mut out: Vec<(usize, Option<R::T>)> = rots.iter().map(|&e| (e, None)).collect();
     for &e in c.cs() {
         let q = c.g.row(e);
@@ -550,12 +584,13 @@ pub fn retained_at<R: KeyEndRow + SeatRow + crate::Dated<Instant = <R as KeyEndR
 /// The successor of key `k`: the one key the frontier of its concluded rotations (among `ret`, when given) not
 /// [`voided`] by the self roster (`roster`, its concluded acts) names. Two keys spoken leave it empty. The reference
 /// is `key_end.successor`.
-pub fn successor<R: KeyEndRow>(
+pub fn successor<R: KeyEndRow + SeatRow>(
     c: &Concluded<'_, R>,
     k: &R::Key,
     ret: Option<&BTreeSet<usize>>,
     roster: &BTreeSet<R::Id>,
 ) -> Option<R::Key> {
+    let closing = closing_voids(c, k, roster); // TR1v2: a rotation without the closing void names no successor
     let rots: Vec<usize> = c
         .cs()
         .iter()
@@ -563,6 +598,7 @@ pub fn successor<R: KeyEndRow>(
         .filter(|&i| c.g.row(i).record().is_some_and(|x| x.succ_of == Some(k)))
         .filter(|i| ret.is_none_or(|s| s.contains(i)))
         .filter(|&i| !voided(c, i, roster))
+        .filter(|&i| closing.iter().all(|&v| c.g.in_past(v, i)))
         .collect();
     let keys: BTreeSet<R::Key> =
         c.g.frontier(&rots).into_iter().map(|i| c.g.row(i).record().unwrap().key.clone()).collect();
