@@ -79,6 +79,10 @@ def rec(i, cls, heads=("af",), signer="A", cosigners=("B",), obj="af", counted=S
     """A version of the record, counted at `heads` (cls None: it states no classes), by an affiliation's officers."""
     if cls is not None:
         kw["licence_classes"] = tuple(cls)
+    if counted == ST.OFFICER:
+        # an affiliation's record change and dissolution take `affiliation_member_action|cosigned_act`, choice `row`
+        # (pin 85750784): the row states the path it takes, its officers' count under the declared protocol
+        kw.setdefault("policy", "cosigned_act")
     return ST.offer(i, signer, (), "record", obj, "group", tuple(heads), head=tuple(heads), cosigners=tuple(cosigners),
                     counted=counted, **kw)
 

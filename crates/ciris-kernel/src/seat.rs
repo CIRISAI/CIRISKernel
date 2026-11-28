@@ -153,6 +153,12 @@ pub enum SeatKind {
     /// A `reconsideration:{grounds}` row naming ([`SeatRow::of`]) a takedown notice, with its
     /// [`SeatRow::outcome`] (`reversed` takes the takedown down). A lone act of a `review` holder (CC 4.5.5).
     Reconsideration,
+    /// The accord's halt (`accord:invoke:constitutional:{halt_id}`, CC 4.2.1.1): one holder's act, which fires and is
+    /// no voice (the ruling of 2026-11-28).
+    Halt,
+    /// The halt's confirmation (`accord:lifecycle:confirmed`): one cosigned row naming ([`SeatRow::cites`]) the halt,
+    /// a strict majority of the standing holders; the halting holder signs it as anyone ([`Act::HaltConfirm`]).
+    HaltConfirmed,
     /// Anything else.
     Other,
 }
@@ -690,6 +696,18 @@ words! {
         /// A community's acceptance of an authority: its onward trust edge, counted over its authority set
         /// ([`crate::trust_rows`]).
         Accept = "accept",
+        /// A steward purge: one `takedown_notice` cosigned under the trust root's protocol, counted over the holders
+        /// of the bundle in force (CC 2.4.1.1, CC 3.3.2).
+        Purge = "purge",
+        /// The members' opening of an election for an ended duty seat (CC 4.5.13). No row is this act yet: the
+        /// opening row's shape is the election's.
+        ElectionOpen = "election_open",
+        /// An affiliation's quarantine of a member (CC 4.4.3.12). No row is this act yet.
+        Quarantine = "quarantine",
+        /// An affiliation's slashing verdict on a member (CC 4.4.3.12). No row is this act yet.
+        Slash = "slash",
+        /// An affiliation's takedown against a member (CC 4.4.3.12). No row is this act yet.
+        Takedown = "takedown",
     }
 }
 
@@ -731,6 +749,8 @@ words! {
         /// A license seat: the issuer's standing over an authority ([`crate::trust_rows`]); over a community its duty
         /// holders confer and withdraw it, and its holder is no duty holder.
         License = "license",
+        /// The selection a steward purge takes down (CC 2.4.1.1, CC 3.3.2).
+        Selection = "selection",
     }
 }
 
@@ -754,6 +774,9 @@ words! {
         Body = "body",
         /// A custody.
         Custody = "custody",
+        /// A voice's roster of room keys (CC 3.1.3.2): a founding row of scope `key`; its keys come and go by the self
+        /// roster's door.
+        Voice = "voice",
     }
 }
 
@@ -864,6 +887,17 @@ pub fn act_of<'r, R: SeatRow + 'r>(
     get: &dyn Fn(&R::Id) -> Option<&'r R>,
     r: &R,
 ) -> Option<(Act, ScopeClass, CommunityKind)> {
+    // the halt's confirmation (the ruling of 2026-11-28): a cosigned accord:lifecycle:confirmed row naming a halt of
+    // the accord it is over is halt_confirm
+    if r.seat_kind() == SeatKind::HaltConfirmed {
+        let obj = r.obj()?;
+        let kind = kind_of(law, get, &obj)?;
+        return (kind == CommunityKind::Accord && confirmed_halt(r, get).is_some()).then_some((
+            Act::HaltConfirm,
+            ScopeClass::Halt,
+            kind,
+        ));
+    }
     let offer = match r.seat_kind() {
         SeatKind::Offer => true,
         SeatKind::Unseat => false,
@@ -965,6 +999,8 @@ pub fn act_of<'r, R: SeatRow + 'r>(
                 _ => None,
             }
         }
+        // a counted row over the selection is the steward purge; any other is a standing act
+        CommunityKind::Accord if sc == Some("selection") => Some((Act::Purge, ScopeClass::Selection, kind)),
         CommunityKind::Accord => Some((Act::StandingAct, ScopeClass::Any, kind)),
         CommunityKind::Affiliation => {
             // an affiliation's acts (the table's affiliation rows, CC 4.4.3.12): an appointment of a member (the
@@ -980,7 +1016,8 @@ pub fn act_of<'r, R: SeatRow + 'r>(
                 _ => None,
             }
         }
-        CommunityKind::SelfRoster => {
+        // a self roster's keys, and a voice's room keys (CC 3.1.3.2: the self roster's door)
+        CommunityKind::SelfRoster | CommunityKind::Voice => {
             let sc = sc?;
             let own = match &obj {
                 Obj::Row(i) => get(i).and_then(|g| g.scope()).map(|s| s.as_ref() == sc),
@@ -1093,7 +1130,7 @@ fn body_of<'r, R: SeatRow + 'r>(
         CommunityKind::Infrastructure => "founder",
         CommunityKind::Accord => "holder",
         CommunityKind::Family => "member",
-        CommunityKind::SelfRoster => match obj {
+        CommunityKind::SelfRoster | CommunityKind::Voice => match obj {
             Obj::Row(i) => {
                 let key: &'r str = "key";
                 get(i).and_then(|g| g.scope()).map_or(key, |s| s.as_ref())
@@ -1542,6 +1579,33 @@ fn lone_act_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, 
     community(&by, &obj)
         && signers(r).len() == 1
         && members_at_with(p, law, spec, &obj, heads, duty, None).contains(r.signer())
+}
+
+/// The halt a confirmation names (its [`SeatRow::cites`]), over the confirmation's own object.
+fn confirmed_halt<'r, R: SeatRow + 'r>(r: &R, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> Option<&'r R> {
+    if r.seat_kind() != SeatKind::HaltConfirmed {
+        return None;
+    }
+    cited(r, get, &|q: &R| q.seat_kind() == SeatKind::Halt).filter(|h| h.obj().is_some() && h.obj() == r.obj())
+}
+
+/// Whether an `accord:lifecycle:confirmed` row (`p.row()`) concludes: it names a halt of the accord it is over, at the
+/// newest counted changes in its past, and its signers are a strict majority of the standing holders there (the
+/// ruling of 2026-11-28; accord_halt's cancel cell).
+fn confirmation_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
+    let r = p.row();
+    let get = |i: &R::Id| p.get(i);
+    let Some(obj) = r.obj() else { return false };
+    if confirmed_halt(r, &get).is_none() || kind_of(law, &get, &obj) != Some(CommunityKind::Accord) {
+        return false;
+    }
+    let heads = r.head();
+    if heads.is_empty() || newer_head_in_past(p, law, &obj, heads, &signers(r)) {
+        return false;
+    }
+    let holders = members_at_with(p, law, spec, &obj, heads, "holder", None);
+    let v = signers(r).into_iter().filter(|k| holders.contains(k)).count();
+    2 * v > holders.len()
 }
 
 /// Whether a `reconsideration` row (`p.row()`) concludes: one `review` holder's signature at the newest counted
@@ -3337,6 +3401,11 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     pub fn c(&self) -> &'c Concluded<'a, R> {
         self.c
     }
+    /// The removals this reading holds out of force or contested (a moderator's lone removal the end rule takes out,
+    /// rule 5's contest): they end nothing here.
+    pub fn dropped(&self) -> &BTreeSet<R::Id> {
+        &self.dropped
+    }
     /// The law it was built under.
     pub fn law(&self) -> &'c SeatLaw {
         self.law
@@ -4524,9 +4593,13 @@ fn registered_agents<'r, R: SeatRow + 'r>(rows: impl IntoIterator<Item = &'r R>)
 /// [`CommunityKind::SelfRoster`].
 fn self_founding<R: SeatRow>(law: &SeatLaw, g: &R) -> bool {
     let get = |i: &R::Id| if i == g.id() { Some(g) } else { None };
-    g.seat_kind() == SeatKind::Offer
-        && founding(g)
-        && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
+    g.seat_kind() == SeatKind::Offer && founding(g) && is_self_kind(kind_of(law, &get, &Obj::Row(g.id().clone())))
+}
+
+/// A person's own rosters: a self roster, and a voice's roster of room keys (the table's kind `voice` is the self
+/// roster's door for a voice's keys), read alike by the person a key counts as.
+fn is_self_kind(k: Option<CommunityKind>) -> bool {
+    matches!(k, Some(CommunityKind::SelfRoster) | Some(CommunityKind::Voice))
 }
 
 /// The self rosters each key is live in over `rows` (a row's concluded past): for every key a live seat of a self
@@ -4564,7 +4637,7 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
             continue;
         }
         let o = Obj::Row(g.id().clone());
-        if kind_of(law, &get, &o) != Some(CommunityKind::SelfRoster) {
+        if !is_self_kind(kind_of(law, &get, &o)) {
             continue;
         }
         let Some(s) = g.scope() else { continue };
@@ -4688,7 +4761,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         let get = |i: &R::Id| by.get(i).copied();
         let keys = obj.is_some_and(|o| match o {
             Obj::Key(_) => true,
-            Obj::Row(_) => kind_of(law, &get, o) == Some(CommunityKind::SelfRoster),
+            Obj::Row(_) => is_self_kind(kind_of(law, &get, o)),
         });
         let none = Persons {
             rosters: BTreeMap::new(),
@@ -4700,7 +4773,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         let any_self = rows.iter().any(|g| {
             g.seat_kind() == SeatKind::Offer
                 && founding(g)
-                && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
+                && is_self_kind(kind_of(law, &get, &Obj::Row(g.id().clone())))
         });
         let revoked: BTreeSet<R::Key> = rows
             .iter()
@@ -6717,6 +6790,18 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     count_met_void(p, law, spec, cache, &BTreeSet::new())
 }
 
+/// Counted row `p.row()`'s count is still met over `p` with the voices `void` taken out: the one re-count for a voice
+/// a concurrent end or removal discounts ([`contested_out`] here; [`crate::trust_rows`]' discounted voice of an ended
+/// key). It reads the seat model's voices path ([`voices`], the persons counted, the agents apart).
+pub fn still_met<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    void: &BTreeSet<R::Key>,
+) -> bool {
+    count_met_void(p, law, spec, None, void)
+}
+
 /// [`count_met`] with the voices `void` taken out (a concurrent counted removal's: [`contested_out`]).
 fn count_met_void<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
@@ -7176,6 +7261,7 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
         SeatKind::Cosign => true,
         SeatKind::Quarantine | SeatKind::Slashing | SeatKind::TakedownNotice => lone_act_rule(p, law, spec),
         SeatKind::Reconsideration => reconsideration_rule(p, law, spec),
+        SeatKind::HaltConfirmed => confirmation_rule(p, law, spec),
         _ => other(p),
     }
 }
@@ -7214,6 +7300,15 @@ fn ends_of<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, r: &'a R) -> Vec<EndedS
         }
         _ => Vec::new(),
     }
+}
+
+/// The seats (key, scope, object) row `r` ends, as the seat model reads ends ([`ends_of`]), owned: the one read of
+/// ends for [`crate::trust_rows`]. `by` looks a row up among those held.
+pub fn ended_seats<'a, R: SeatRow>(
+    by: &BTreeMap<&R::Id, &'a R>,
+    r: &'a R,
+) -> Vec<(R::Key, Option<String>, Option<ObjOf<R>>)> {
+    ends_of(by, r).into_iter().map(|(k, sc, o)| (k.clone(), sc.map(String::from), o)).collect()
 }
 
 /// (2): an end of a seat that has an end of that seat in its own past is no end, whoever signed either (a
