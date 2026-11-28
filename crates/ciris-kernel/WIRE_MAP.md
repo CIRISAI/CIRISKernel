@@ -15,6 +15,9 @@ Sources read:
   `roster-merge` `23b26c1`, `audience` `3a37cd2`, `charter` `48b44ad` (which contains `persist-gaps` `9e791b3`),
   `key-person` `70af5e8`, `room-key-vectors` `d991aa5` (fixture only), `key-end-retained` `44c697c`. The tables
   below are the union.
+- The Constitution's readings at `d5d42bf` (family model sha256 `94a6ac96`) of every N and G below. Each is cited **TEXT** (the text says it, or it follows from the
+  text), **RULED** (the Constitution's ruling where the text is silent or contradicts itself; the text change it
+  names is to follow), or **PROVISIONAL** (ruled for now, the rule not yet in the text).
 - The field lists the models and modules already state, checked against the tables below: `models/trust_root/root.py`
   (a bundle's holders, seats, charter, version, family, recovery, and `prev` as `refs.prev` then `refs.further_prev`
   for a join), `models/causal_kernel/key_end.py` (a record; a rotation's `succ_of`, both signatures and `at_old`; a
@@ -31,8 +34,8 @@ Markers used below:
 | **D** | Derived by the store from wire members or other held rows; no single member carries it. The rule is stated. |
 | **T** | Table data (`governance_policy.tsv`, `governance_policy_acts.tsv`, the window specs), not a row member. |
 | **L** | Store-local: the store's own state (first-held instants, purge bookkeeping), never signed. |
-| **NO WIRE FAMILY** | The crate reads a fact a signed row should carry, and no family, member or role carries it. Listed in [the findings](#no-wire-family-findings). |
-| **[Gn]** | The mapping is a reading, not stated by the text. Listed in [the guessed mappings](#guessed-mappings). |
+| **NO WIRE FAMILY** | The crate reads a fact a signed row should carry, and no family, member or role carries it. Listed, with the Constitution's rulings, in [the findings](#the-no-wire-family-findings-ruled). |
+| **[Gn]** | A mapping the text did not state plainly, now cited TEXT, RULED, PROVISIONAL or kernel's choice. Listed in [the guessed mappings](#guessed-mappings). |
 
 ## 1. The statement and its three ids
 
@@ -119,7 +122,7 @@ statement over the same payload, counted; never a payload member"). A store does
 | the signing key | protected `kid` (label 4) |
 | the suite | protected `alg` (label 1), the constant -70100; no row chooses a suite |
 | the scope word of a seat | per family (section 7.2, `SeatRow::scope`): `"member"` on a widening or removal, the payload `scope[]` token on a `delegates_to`, `"record"` on a later `group:roster` version, `"registered"` on a `key:record`, `"owner"` on an owner-binding |
-| the cohort scope of a row (placement) | payload `cohort_scope`, with `community_id` or `family_id` (each a group id); a row with no `cohort_scope` that names keys for delivery is `addressed` [G3] |
+| the cohort scope of a row (placement) | payload `cohort_scope`, with `community_id` or `family_id` (each a group id); `addressed` is a row whose signed `for_key_id` names its recipient (TEXT, CC 6.1.9); a row with no `cohort_scope` takes its family's placement rule (placed by another row) [G3] |
 
 ## 3. What a row names
 
@@ -144,9 +147,9 @@ Two members name a bundle outside `refs` and still belong in `names()`, because 
 past from `names()` alone:
 
 - `trust:accepts` payload `attached_head_digest` (a `hash-digest`, the bundle's object id). `RootGrant::attached_head`.
-- An election's set: `ballot:moderator_acceptance` binds "the digest of the ballot and withdrawal rows counted"
-  (CC 3.1.4), and `ballot:moderator` names "the election id (digest of the community id and the last seating
-  row, or of the roster's genesis)". Neither is a `row-ref`. See [G12], [G13].
+- None other. An election's id and its counted set are named by `row-ref` (RULED [G12], [G13]): a ballot names its
+  election's row (the last seating, or the roster's first version) and a seating cites each ballot, withdrawal and
+  decline it counts under `refs.also.cites`. The election id is derived from the row, needing no preimage.
 
 ## 4. Objects: rows, keys and groups
 
@@ -222,7 +225,7 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 | any row the reader signs over a room, naming `refs.head` | `Ack` with `room()` (the reader's acknowledgement) **D** [G11] | | `Ack` | `ReaderAck` |
 | `ballot:moderator:v1` | `Ballot` | `Answer` where a ranked window reads it | `Other` | `Answer` |
 | `ballot:moderator_acceptance:v1` (the winner's seating) | `Offer`, scope `moderate`, `Conf::Group`, policy `moderator_election` **D** | | `Head` | `Act` |
-| an election decline | `Decline`: **NO WIRE FAMILY** [N1] | | | |
+| an election decline (the winner's own signed row) | `Decline`, `of()` the offer it answers under `refs.answers` (PROVISIONAL [N1]; its family is not yet registered) | | | |
 | `ballot:moderation_action` | `Other` | `Answer` (`says` `for` or `against`) | | `Answer` |
 | `objection:{state}` (`assent`, `raised`) | `Other` | `Answer`, `says` the state leaf | | `Answer` |
 | `window:held:v1` | `Other` | `Receipt` | | `Other` |
@@ -284,19 +287,19 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 | `seat_kind` | section 6.1 | **D** |
 | `word` | none | the crate's own constructor for a scope word |
 | `to` | widening, removal: payload `member` (equal to `sub`). `group:roster` first version: `members[].key`. `delegates_to` (`self:delegates_to`, `trust:confers`, owner-binding): `sub`. Election seating: the signer. `key:record`: the key. `identity:occurrence`: `occurrence_key_id`. A counted `withdraws` read as `Unseat`: the target's `to` | identity references |
-| `scope` | widening, removal: `"member"`, or `"agent"` where the member's key record's `identity_type` contains `agent` [G17]. `group:roster` first version: `"member"`, or `"founder"` for an infrastructure community (`cohort_subkind` `infrastructure`). Later `group:roster` version: `"record"`. `self:delegates_to`: a token of payload `scope[]` other than `sub_delegation`; a set of several duty tokens is one crate row per token [G18]. Owner-binding: `"owner"`. `key:record`: `"registered"`. Acceptance: the payload `role`, else `"member"`. Withdraw: **NO WIRE FAMILY** [N2] | |
+| `scope` | widening, removal: `"member"`, or `"agent"` where the member's key record's `identity_type` contains `agent` [G17]. `group:roster` first version: `"member"`, or `"founder"` for an infrastructure community (`cohort_subkind` `infrastructure`). Later `group:roster` version: `"record"`. `self:delegates_to`: a token of payload `scope[]` other than `sub_delegation`; a set of several duty tokens is one crate row per token [G18]. Owner-binding: `"owner"`. `key:record`: `"registered"`. Acceptance: the payload `role`, else `"member"`. Withdraw: a lay-down is a `withdraws` targeting the seating conferral (the founding record for a founder's duty), carrying the duty it ends as its scope; absent, the whole stay (RULED [N2]; the payload member's name follows in the text) | |
 | `obj` | widening, removal, acceptance, keeps: payload `group`. `self:delegates_to` over a room: payload `community_id` (or `family_id`). Founding version: its own row id. Owner-binding, `key:record`: `Obj::Key(sub)` | a group id resolves to the founding version's row id [G4] |
 | `conf` | **D**: `Own` for a founding version and for a row over the signer's own key; `Seat` for an authored `delegates_to` under a seat (`refs.also.under` present, or the signer's own live seat); `Group` for every counted arm | |
 | `under` | `refs.also.under`, its one element | row id |
 | `cosigners` | the `kid` of every further verified statement over the payload (section 1); on an authored row, the second-consent roles | identity references |
 | `subjects` | payload `subject_key_ids` | identity references (or `canonical:{hashalg}:{hex}` text) |
 | `sub` | `"sub_delegation"` is a token of the `delegates_to` payload `scope[]` (CC 4.4.3.19) | |
-| `head` | `refs.head` then `refs.further_heads` | row ids |
+| `head` | `refs.head` then `refs.further_heads`. On a body's counted receipt (`act:ack`, which names no head): **D**, each named act's own head (TEXT [N10]) | row ids |
 | `consensus_protocol` | `group:roster` payload `consensus_protocol` | |
 | `cohort_subkind` | `group:roster` payload `cohort_subkind` | |
 | `group_kind` | `group:roster` payload `group_kind` | |
-| `official` | an affiliation record's designated official [G19] | the text names the limb ("designated officials", CC 4.4.3.12) and no member |
-| `overseen_by` | the affiliation record's `overseen_by` (CC 4.4.3.12 names the member in prose; no CDDL rule) | a group id or row id [G19] |
+| `official` | the record's `designated_officials` (role to key), a payload member of the community record beside `consensus_protocol` (RULED [G19]) | a key |
+| `overseen_by` | the record's payload member `overseen_by`, one group id, beside `consensus_protocol` (TEXT for the name, RULED for the place [G19]) | group id, resolved to its founding row [G4] |
 | `family_param` | the `dimension` segment at the family's `{name}` position | text |
 | `outcome` | `reconsideration:{grounds}` payload `outcome` (CC 4.5.5 prose; no CDDL rule); on `slashing:{outcome}`, the `{outcome}` segment | |
 | `agent_registration` | `key:record` payload `identity_type` (a set) contains `agent` | |
@@ -304,30 +307,30 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 | `protocol_entrenched` | `group:roster` `consensus_protocol_entrenched`; absent reads false on the wire, `None` here only where the version omits it | |
 | `admission_quorum_basis` | `group:roster` `cohort_subkind_payload.infrastructure_constraint.admission_quorum_basis` | |
 | `dissolves` | `group:roster` carries `dissolved_at` | |
-| `bundle` | a recovery widening's bundle: **NO WIRE FAMILY** [N3] | |
+| `bundle` | **D**: the widening carries `refs.also.stands_on` naming the counted grant (RULED [N3]); the bundle is the grant's `refs.head` | the grant's row id, then the bundle's object id |
 | `role` | widening `role`; `group:roster` `members[].role` (`founder`) on a founders' amendment | |
 | `regime` | **D**: the protocol in force and the act's policy, as one value the store composes | |
 | `lifts` | payload `lifts` (present only as `true`) | |
 | `policy` | **T**: the act's policy row (`governance_policy_acts.tsv`, `act_of`, `policy_for`); `moderator_election` for a `ballot:moderator_acceptance` seating | |
 | `counted` | **T** | |
 | `over` | **T** | |
-| `need` | **T** for a count; on a record declaring `weighted:{rubric}`, the threshold in the record's `policy` map [G20] | |
-| `of` | `Accept` replying to a grant: `refs.answers`. `Ack`: one element of `refs.also.ack`. `Ballot`, `Decline`, election seating: the election's id row, derived from the election id [G12]. `Quarantine` release: the withhold it lifts [G21]. `TakedownNotice`: the content row, which the notice names by `content_sha256`, not by row id [G22]. `Reconsideration`: the notice [G23]. `Countersign`: the act [G15] | row ids |
+| `need` | **T** for a count; on a record declaring `weighted:{rubric}`, the record's payload member `need` beside `consensus_protocol` (RULED [G20]) | a whole number |
+| `of` | `Accept` replying to a grant: `refs.answers`. `Ack`: one element of `refs.also.ack`. `Ballot`: its election's row, by `row-ref` (RULED [G12]). `Decline`: the offer it answers, `refs.answers` (PROVISIONAL [N1]). `Quarantine` release: the withhold it lifts, `refs.also.cites` (RULED [G21]). `TakedownNotice`: the establishing attestation whose content `content_sha256` binds, the copy at the scope the notice's duty is over (TEXT [G22]). `Reconsideration`: the notice it contests, `refs.also.cites`, its ruling in `outcome` (RULED [G23]). `Countersign`: the act [G15] | row ids |
 | `target` | `withdraws` `refs.target` | row id |
-| `content` | a lift's citation of the removal: `refs.also.cites` [G24] | row id |
+| `content` | a lift's citation of the act it lifts (the removal): `refs.also.cites` (TEXT [G24]) | row id |
 | `duties` | `group:roster` `policy.duties` | |
 | `duty_holders` | `group:roster` `duty_holders` (first version only) | map duty to a set of identity references |
-| `weights` | a `weighted:{rubric}` record's weights in its `policy` map [G20] | |
-| `options` | **NO WIRE FAMILY** [N4] | no ranked offer with options is a wire row (the election's seating states none) |
+| `weights` | a `weighted:{rubric}` record's payload member `weights` (key to a whole number) beside `consensus_protocol` (RULED [G20]) | |
+| `options` | **D**: an election's options are the members of the roster it names (RULED [N4]); a poll's options have no family yet | identity references |
 | `ranking` | `ballot:moderator` `ranks`, up to three identity references in order (a sequence) | the family model's body cell for `ranks` is `type: unstated` |
 | `signing_key` | `kid`, as an identity reference | |
 | `room` | `Ack` read from a reader's row: the group of the head it names **D** | |
-| `licence_classes` | the community record's `licence_classes`, each with `legal_weight` (CC 4.4.3.12 prose; no CDDL rule) | |
-| `declared_cohort` | the community record's `declared_cohort` (CC 4.4.3.12 prose; no CDDL rule) | |
+| `licence_classes` | the community record's payload member `licence_classes`, each with `legal_weight`, beside `consensus_protocol` (TEXT for the name, RULED for the place [G19]) | |
+| `declared_cohort` | the community record's payload member `declared_cohort` beside `consensus_protocol` (TEXT for the name, RULED for the place [G19]) | |
 | `private_room` | founding `group:roster` `membership` is `private` | |
 | `merge` (roster-merge) | a later `group:roster` version naming two or more tips (`refs.head` and `refs.further_heads`) | |
 | `merge_members` (roster-merge) | that version's `members[].key` | |
-| `merge_duties` (roster-merge) | **NO WIRE FAMILY** [N5]: `duty_holders` is carried "on the first version of a community only" | |
+| `merge_duties` (roster-merge) | none: a merge carries no duty seats; they are the fold of the conferral, withdrawal, resignation and election rows over the folded roster (RULED [N5]). The accessor is to be removed | |
 
 ### 7.3 `window::WindowRow`
 
@@ -336,7 +339,7 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 | `win_kind` | section 6.1 | **D** |
 | `window` | **T**: the window name of the opener's act's table row | |
 | `target_key` | the opener's `sub`, where it is a key | identity reference |
-| `says` | an answer: the `objection:{state}` leaf (`assent`, `raised`) or the ballot's word (`for`, `against`). A landing's outcome: **NO WIRE FAMILY** [N6] | `window-step` carries `author`, `dimension`, `refs`, `asserted_at` and no outcome |
+| `says` | an answer: the `objection:{state}` leaf (`assent`, `raised`) or the ballot's word (`for`, `against`). A landing's outcome: **D** from the leaf: `window:landed` states the change lands, `window:refused` every other outcome the table gives at the window; a tally's direction is recomputed from the rows the landing cites (RULED [N6]) | |
 | `receipt` | a landing's `refs.prev` (its signer's `window:held` row) | row id |
 | `at` | payload `asserted_at` | ms |
 
@@ -399,8 +402,8 @@ person [G25].
 | Accessor | Wire source | Notes |
 |---|---|---|
 | `id`, `signer`, `names` | row id, `kid` [G1], `refs` | |
-| `family` | the family name matched against `audience_table.rs` patterns: the `dimension` less its `:vN`; for a row with no `dimension`, the family id respelled as its pattern [G27] | |
-| `scope` | payload `cohort_scope`, or `addressed` [G3] | |
+| `family` | label -70002, the family id, respelled as its registry pattern, for every row (TEXT [G27]) | |
+| `scope` | payload `cohort_scope`; `addressed` where the row carries a signed `for_key_id` (TEXT [G3]); a row of a family placed by another row takes that row's placement | |
 | `room` | payload `community_id` or `family_id` [G4] | founding row id |
 | `named` | `sub` (the attested key), `subject_key_ids`, `for_key_id` | identity references |
 | `seat_act`, `obj`, `to` | as `SeatRow` (section 7.2) on a widening (`Offer`) or removal (`Unseat`) | |
@@ -431,7 +434,7 @@ and the `ReceipterEnd` kind, not a row accessor.
 | `id`, `signer` | row id (object id for a bundle), `kid` [G1] | |
 | `kind` | section 6.2 | **D** |
 | `head` | an act's `refs.head` (the bundle in force, an object id); a grant end's `refs.head` | object id |
-| `on` | an act: `refs.also.stands_on`. A receipt: its act under `refs.also.ack`. An acceptance: its binding: **NO WIRE FAMILY** [N7] (the reply names the grant under `refs.answers`, never the binding). A re-binding: the binding it ends [G28] | |
+| `on` | an act: `refs.also.stands_on`. A receipt: its act under `refs.also.ack`. An acceptance: none on the wire: it stands while its author is `owner_of` the key the grant names (RULED [N7]); **D**: the owner-binding of that owner the store holds (where an owner re-signed at several scopes, any of them: they are one binding to `owner_of`). A re-binding: the binding it ends, `refs.target` (TEXT [G28]) | |
 | `owner` | an owner-binding's `author` | identity reference |
 | `target` | the removal's `sub` | |
 | `lifts` | payload `lifts` | |
@@ -451,9 +454,9 @@ and the `ReceipterEnd` kind, not a row accessor.
 | `charter` | payload `charter`, compared whole (its deterministic encoding) | |
 | `duties` | `charter.scope` (a set of tokens) | |
 | `sub_delegation` | `"sub_delegation"` in `charter.scope` (CC 3.2: "the charter of the bundle the grant names carries `sub_delegation`"); the wire states it once for the charter, never per duty [G29] | |
-| `names` | the bundles a settler names beside those it extends: **NO WIRE FAMILY** [N8] | |
+| `names` | a settler's other contested siblings, under `refs.also.cites` (PROVISIONAL [N8]) | object ids |
 | `recovery` | `charter.recovery_commitments`: holder to the commitment `[-16, SHA-256(["CEG-recovery/2", [key]])]`, not the key [G30] | |
-| `settles` | **NO WIRE FAMILY** [N9] | |
+| `settles` | the sibling that stands, under `refs.target` (PROVISIONAL [N9]) | object id |
 | `recovers` | a recovery bundle (one statement, `iss` the holder, `kid` the recovery key): (the holder, by its identity reference `iss`; the key of the holder's new signing-key record under `refs.also.cites`) [G31] | |
 | `iat` | `floor(asserted_at / 1000)` | seconds |
 | `statements` | each verified statement: (`kid` as an identity reference, its CWT `iat`). The holder it speaks for is resolved from `holders` and the key records under `refs.also.cites`: a holder's current key in the bundle in force, its first key being its identity's genesis key, a later one named by a recovery (`recovers`). A voice under a key a recovery retired is no voice; a holder is one voice across its keys [G1] | |
@@ -469,7 +472,7 @@ and the `ReceipterEnd` kind, not a row accessor.
 | `halts` | family `accord:invoke:constitutional:.halt_id` | |
 | `bundles` | `refs.head` and `refs.further_heads` | object ids |
 | `to` | `sub` | identity reference |
-| `scope` | the room the grant seats in: payload `community_id` [G32] | founding row id |
+| `scope` | the room the grant seats in: a token of the grant's payload `scope` naming the room's group id (TEXT, CC 3.2 T7 [G32]; the token's spelling is not yet stated) | founding row id |
 | `signers` | the `kid` of every verified statement, each resolved to its holder as for `RootBundle::statements` [G1] | |
 | `duty` | a token of payload `scope[]`; several tokens are one crate grant per token [G18] | |
 
@@ -541,73 +544,73 @@ over the object, a signer's key or person row, a reader's row, a bundle or root-
 cached answer is never written back as a row field or a stored verdict, and never read as one: it is the answer
 over that set, and only that set.
 
-## NO WIRE FAMILY findings
+## The NO WIRE FAMILY findings, ruled
 
-Each is a crate field a signed row should carry and that no family, member or `refs` role carries at
-`rc23-next` `d5d42bf`. They are findings for the Constitution.
+Each was a crate field with no wire source at `d5d42bf`. The Constitution ruled each; the tables above apply the
+rulings.
 
-| # | Crate field | What the crate reads | What the wire has |
+| # | Crate field | Ruling | Status |
 |---|---|---|---|
-| N1 | `SeatKind::Decline` (with `of()` the election) | a member's decline of an election | `ballot:moderator`, `ballot:moderator_acceptance` and the generic `membership:decline` (which answers a proposal or a grant). No election decline. |
-| N2 | `SeatRow::scope` on a `Withdraw` | the one seat of the target a withdrawal ends (a founder laying down one duty of a founding record) | a `withdraws` payload carries `refs`, `asserted_at` and `lifts`; no member names the seat |
-| N3 | `SeatRow::bundle` | the bundle a stalled infrastructure room's recovery widening is counted over | a widening's `refs.head` is its roster head; no member or role names a bundle |
-| N4 | `SeatRow::options` | a ranked offer's options | no family carries options; the moderator election states none |
-| N5 | `SeatRow::merge_duties` (roster-merge) | a roster merge's duty seats | `duty_holders` is "on the first version of a community only" |
-| N6 | `WindowRow::says` on a landing | the outcome a landing states | `window-step` carries no outcome member; the leaves are `held`, `landed`, `refused` |
-| N7 | `StandingRow::on` on an acceptance | the binding an owner's acceptance of a grant is made under | `membership-reply` names only the grant under `refs.answers` |
-| N8 | `RootBundle::names` | the sibling bundles a bundle at a head names besides those it extends (rule 3) | `genesis-refs` carries `prev`, `further_prev` (a join) and `also.cites` (rows); no role names a sibling that is not a predecessor |
-| N9 | `RootBundle::settles` | which contested sibling a settler names as the one that stands | no member |
-| N10 | `SeatRow::head` on a room count's receipt (`SeatKind::Ack`, `Conf::Group`, `of()` a lone removal) | the heads the count is read at (each the removal's head or later) | `act:ack` "names no head" (`family_payloads_v2.cddl`, `act-ack`) |
+| N1 | `SeatKind::Decline` | a decline is the winner's own signed row and answers the offer, `refs.answers`; its family is not yet registered | PROVISIONAL |
+| N2 | `SeatRow::scope` on a `Withdraw` | a lay-down is a `withdraws` targeting the seating conferral, carrying the duty it ends as its scope | RULED (the payload member's name, and rule 0's admission of a signer's own withdrawal on a counted record, follow in the text) |
+| N3 | `SeatRow::bundle` | the recovery widening carries `refs.also.stands_on` naming the counted grant; the bundle is the grant's `refs.head`, so the field is **D** | RULED |
+| N4 | `SeatRow::options` | an election's options are the roster it names; a poll's opening row and options have no family yet | RULED (election); open for polls |
+| N5 | `SeatRow::merge_duties` | a merge carries no duty seats: they fold; the accessor is removed | RULED |
+| N6 | `WindowRow::says` on a landing | derived from the leaf: `landed` lands the change, `refused` is every other outcome; a tally's direction is recomputed from the cited rows | RULED |
+| N7 | `StandingRow::on` on an acceptance | none: the acceptance stands while its author is `owner_of` the key the grant names; the store derives the binding | RULED |
+| N8 | `RootBundle::names` | a settler names its other contested siblings under `refs.also.cites` | PROVISIONAL |
+| N9 | `RootBundle::settles` | a settler names the sibling that stands under `refs.target` | PROVISIONAL |
+| N10 | `SeatRow::head` on a room count's receipt | the count is read at each named act's own head; the receipt names no head | TEXT (CC 2.7.5) |
 
-Wire-side mismatches the map met, for the same list:
+Wire-side notes, as the Constitution read them:
 
-- `trust:accepts` names its bundle in `attached_head_digest`, outside `refs`; a reader gathering the named set from
-  `refs` alone misses it.
-- `ballot:moderator` and `ballot:moderator_acceptance` name the election and its counted set by digests (CC 3.1.4),
-  not by `row-ref`; neither payload has a CDDL rule.
-- `takedown_notice` names its content by `content_sha256`, not by row id.
-- `membership:proposal` and `membership:resignation` have no payload rule in `family_payloads_v2.cddl`;
-  `ballot:moderator`'s `ranks` is `type: unstated` in the family model.
+- `trust:accepts` names its bundle in `attached_head_digest`, outside `refs`, by design (CC 3.2 T4a); a holder adds
+  it to the named set. CC 2.1 calls it a byte string of the roster record where T6 and the CDDL give the bundle's
+  object id: the Constitution's to reconcile.
+- `takedown_notice` names its content by `content_sha256`, by design: the notice reaches the establishing
+  attestation, at the scope whose duty it was issued under; a steward purge names a selection, not a row.
+- `membership:proposal`, `membership:resignation` and the two ballot rows have members in prose and no payload rule
+  yet; `ranks` is a sequence of up to three identity references.
 
 ## Guessed mappings
 
-Each is a mapping the text does not state. Those marked **kernel's choice** are how the crate presents a wire
-row, not a reading of the text: they are settled here, and a store and a minter follow them. Those marked
-**open** wait on the Constitution's ruling.
+Each was a mapping the text did not state plainly. The Constitution read each against the text at `d5d42bf`: the
+status column cites it as TEXT, RULED or PROVISIONAL, or as the **kernel's choice** where it is how the crate
+presents a wire row and the text leaves it to the reader.
 
 | # | Field | The reading taken | Status |
 |---|---|---|---|
-| G1 | `Row::signer` | `kid`, the key that signed, as an identity reference; `cosigners()` likewise. The person is derived by the persons map (`seat::Persons`, from the self roster: a device key to its genesis key, a room key to its voice). `iss` MUST name the person the persons map gives; a mismatch is a door refusal. Required by the key view (`seat::voices_with` calls `key_end::counts_by(row, signer)`, keyed by `kid`) and by key-person's persons map, which reads the signer as the device key. The root lane reads `kid` too (`RootGrant::signer`, `RootGrant::signers`, `RootBundle::statements`): the root fold judges the key (a voice under a key a recovery retired is no voice, a holder is one voice across its keys, retired and spent keys are tracked by key), and the holder is resolved from the bundle's `holders` and cited key records, a holder's current key in the bundle in force. One signer everywhere. ADOPTING.md's private-room sentence reads: the voice is the person the persons map gives for the signing key. | provisionally confirmed by the Constitution: the signer the rules read is `kid`, and `iss` gives the identity; final with its other rulings |
-| G2 | `Row::signer` of a counted row | the `kid` of the verified statement with the least statement id; the other voices' `kid`s are `cosigners()`. Rules that set one signer apart (a window table over `others`, `author_apart`) read whichever voice is chosen. | kernel's choice: the crate reads a counted row's voices as one set (signer with cosigners); one must be named signer, and the least statement id is fixed by the bytes, not by arrival. Consistent with G1: each voice is its signing key. |
-| G3 | `AudienceRow::scope` `addressed` | a row with no `cohort_scope` that names keys for delivery | open: a question for the text |
-| G4 | a group id | resolved to the row id of the group's first `group:roster` version; `Obj::from_reference` does not type a `group-…` reference | kernel's choice: the crate's object for a group is its founding row (`seat::Obj`); the group id is derived from that version, so the resolution is one-to-one. |
-| G5 | the self roster | its object is the genesis key's `key:record` row; an `identity:occurrence` is an offer of scope `key` to the `occurrence_key_id`; its revocation an unseat | kernel's choice: `SeatLaw::kinds` types a self roster by its founding row; the genesis key's record is the row the first bind names in `refs.head`. |
-| G6 | `Record::at_old` | the rotation's own `asserted_at`, since the old key's statement is over the same payload | kernel's choice: the rotation and the old key's statement are over one payload, so they state one `asserted_at`; this is the crate's `at_old`. |
-| G7 | an acceptance of a proposal | a standing acceptance (`of()` `None`, `scope` the `role` or `member`, `obj` the group), which the widening names under `refs.also.cites`; the crate's `consented` reads it that way | kernel's choice: the crate's `consented` already reads a standing acceptance the offer names; the widening names the acceptance under `also.cites`. |
-| G8 | `membership:decline` | a `Withdraw` of the row it answers (the crate's "declining an invitation" is a withdrawal of an offer never consented to) | kernel's choice: the crate models declining an invitation as a withdrawal of an offer never consented to, which ends no stay. |
-| G9 | `membership:resignation` | a `Withdraw` whose `target()` the store derives: the offer that seats the member (its widening, or the founding version), or its own acceptance. No `refs.target` is stated for the leaf. | open: a question for the text |
-| G10 | a counted `withdraws` | an `Unseat` of the target's seat (the model's holders' withdrawal is `unseat ... duty_withdraw`) | kernel's choice: the crate's cut on a seat slot is `Unseat`; the model presents the holders' withdrawal so (`check_acts.py`, `duty_withdraw`). |
-| G11 | the reader's acknowledgement | every row the reader signs naming a roster head is an `Ack` with `room()` that head's group | kernel's choice: CC 2.7.9 makes every row a reader signs an acknowledgement of its past; the crate reads it as `Ack` with `room()`. |
-| G12 | an election's id row (`of()` of a ballot, a decline, a seating) | the wire's election id is a digest of the community id and the last seating row (or the roster's genesis); the store recomputes it and maps it to that row | kernel's choice: the text defines the election id from the last seating row (or the genesis); the crate names that row, so the store maps the digest back to it. |
-| G13 | the set an election seating names | the wire binds a digest of the counted ballots and withdrawals; the crate reads the seating's `names()`; the store presents the set the digest commits to as names | kernel's choice: the crate reads a seating's set through `names()`; the store presents the rows the digest commits to. |
-| G14 | `window:refused:v1` | a landing stating refused | open: a question for the text |
-| G15 | `SeatKind::Countersign` | a countersign key's further statement over the act's payload, presented as its own row (`Row::id` its statement id, `of()` the act's row id). The text says "countersigned by a key outside the officers" and names no row form. | kernel's choice: the crate reads a countersign as a row with `of()` the act; a further statement presented as its own row (id its statement id) fits whatever row form the text gives. At `d5d42bf` the one-officer text (CC 4.4.3.12) says which acts are held until countersigned and who countersigns, and still names no row form. |
-| G16 | `standing::Kind::Removal` | a `membership:removal` whose `sub` is the key | kernel's choice: the crate's `Removal` is a removal of a key; `membership:removal` is that row. |
-| G17 | scope `agent` | read from the seated key's `key:record` `identity_type` (contains `agent`); the widening itself carries no scope | kernel's choice: the crate reads an agent's seat by scope `agent`; the key record's `identity_type` is the one place the wire says a key is an agent's. Consistent with G1: the record read is the seated key's own (an agent's key is itself, never its owner, CC 4.5.13). |
-| G18 | a `scope[]` with several tokens | one crate row per token, all under the one row id | kernel's choice: the crate reads one scope per seat row; a set of tokens is presented as one crate row per token under the one row id. |
-| G19 | `official`, `overseen_by` | members of the affiliation's record named in prose (CC 4.4.3.12); `official`'s member name is not stated | open: a question for the text |
-| G20 | `weights`, `need` of a weighted record | members of the record's `policy` map; the member names are not stated | open: a question for the text |
-| G21 | a quarantine release's `of()` | the withhold it lifts, under `refs.target` | open: a question for the text |
-| G22 | a takedown's `of()` | the content row whose bytes hash to `content_sha256`; the notice names no row | open: a question for the text |
-| G23 | a reconsideration's `of()` | the notice, under `refs.answers` | open: a question for the text |
-| G24 | a lift's `content()` | the removal, under `refs.also.cites` | open: a question for the text |
-| G25 | the key end views' signer | the `kid` of the statement, as an identity reference: the same as every view under G1 | kernel's choice: a key ends, not an identity; G1 makes this the general rule, so the key view and the seat views see one signer. |
-| G26 | `KeyEndRow::statement().1` | the key record of the `kid` whose window covers the statement's `asserted_at`, found by the store | kernel's choice: no row names its cover; the store finds the record of the signing key whose window covers the instant, as `key_end` reads it. |
-| G27 | `AudienceRow::family` | the `dimension` less its version, else the family id respelled as its pattern | kernel's choice: the audience table is matched by family name; the dimension less its version is that name. |
-| G28 | a re-binding's `on()` | the binding it ends, under `refs.target` | open: a question for the text |
-| G29 | `RootBundle::sub_delegation` | every duty of the charter where `charter.scope` holds `sub_delegation` | open: a question for the text |
-| G30 | `RootBundle::recovery` | the second element is the commitment digest, compared by equality, not the recovery key | kernel's choice: the crate compares the recovery entry by equality only; the commitment is what the wire carries and compares the same way. |
-| G31 | `RootBundle::recovers` | the new key is the key of the holder's new signing-key record cited under `refs.also.cites` | open: a question for the text |
-| G32 | `RootGrant::scope` | the grant's placement `community_id`; `trust:confers` carries scope tokens and no room member | open: a question for the text |
-| G33 | `KeyEndRow::roster_end` | a roster end is a concluded act of the person's self roster under that roster's own count rule (an eviction of the key), never a row signed by the successor (the ruling after r89; the windows-rows lane rebuilds it); which family carries the instant from which the key's rows are ended is not stated (`identity:occurrence_revocation` carries `effective_at`) | open: a question for the text |
-| G34 | `AudienceRow::follows` | the row named by the family's own reference: the permission a `duty:{kind}` row attaches to, the owner-binding an `ownership` row mirrors, the stream a `stream:head` heads, under `refs` (`target` or `also.cites`); a `custody:{kind}` row names its blob by `evidence_refs`, so its followed content is found by digest | open: a question for the text |
+| G1 | `Row::signer` | `kid`, the key that signed, as an identity reference; `cosigners()` likewise. The person is derived by the persons map (`seat::Persons`, from the self roster: a device key to its genesis key, a room key to its voice). `iss` MUST name the person the persons map gives; a mismatch is a door refusal. Required by the key view (`seat::voices_with` calls `key_end::counts_by(row, signer)`, keyed by `kid`) and by key-person's persons map, which reads the signer as the device key. The root lane reads `kid` too (`RootGrant::signer`, `RootGrant::signers`, `RootBundle::statements`): the root fold judges the key (a voice under a key a recovery retired is no voice, a holder is one voice across its keys, retired and spent keys are tracked by key), and the holder is resolved from the bundle's `holders` and cited key records, a holder's current key in the bundle in force. One signer everywhere. ADOPTING.md's private-room sentence reads: the voice is the person the persons map gives for the signing key. | TEXT: `iss` is the signer's identity, `kid` the signing key, and step 8 (CC 2.6.1.7) ties them: persons(`kid`) MUST equal `iss`, a mismatch a door refusal. Rules reading who signed read the person; key-liveness rules read `kid`. In a private room the persons map gives the voice; a recovery statement has `kid` the recovery key and `iss` the holder |
+| G2 | `Row::signer` of a counted row | the `kid` of the verified statement with the least statement id; the other voices' `kid`s are `cosigners()`. Rules that set one signer apart (a window table over `others`, `author_apart`) read whichever voice is chosen. | kernel's choice: a counted row has voices and no signer in the text (TEXT-silent); the least statement id is presentation, and no rule may read `signer()` apart from `cosigners()` on a counted row |
+| G3 | `AudienceRow::scope` `addressed` | `addressed` is a row carrying a signed `for_key_id`; a row with no `cohort_scope` takes its family's placement rule | TEXT, and the guess was wrong: `addressed` is a row carrying a signed `for_key_id` (CC 6.1.9); a row with no `cohort_scope` takes its family's placement |
+| G4 | a group id | resolved to the row id of the group's first `group:roster` version; `Obj::from_reference` does not type a `group-…` reference | TEXT (derivable): the id is a function of the first version. Two first versions under one id are possible and wait as tips; then the id resolves to both |
+| G5 | the self roster | its object is the genesis key's `key:record` row; an `identity:occurrence` is an offer of scope `key` to the `occurrence_key_id`; its revocation an unseat | kernel's choice, with the Constitution's caution: the self is its fedID, and a genesis key may hold several records; `Obj::Key(identity_key_id)` is the reading that needs no choice of record |
+| G6 | `Record::at_old` | the rotation's own `asserted_at`, since the old key's statement is over the same payload | TEXT (derivable): one payload, one `asserted_at` |
+| G7 | an acceptance of a proposal | a standing acceptance (`of()` `None`, `scope` the `role` or `member`, `obj` the group), which the widening names under `refs.also.cites`; the crate's `consented` reads it that way | TEXT: the acceptance answers the proposal (`refs.answers`), the widening cites the acceptance (`also.cites`) |
+| G8 | `membership:decline` | a `Withdraw` of the row it answers (the crate's "declining an invitation" is a withdrawal of an offer never consented to) | kernel's choice, outcome-equal to the text: a decline ends the proposal for seating; in the text it is the key's answer, and an acceptance concurrent with it is contested, not retired |
+| G9 | `membership:resignation` | a `Withdraw` whose `target()` the store derives: the offer that seats the member (its widening, or the founding version), or its own acceptance. No `refs.target` is stated for the leaf. | HELD: the Constitution RULED a resignation names no target (the member's stay at the head named). The crate's `Withdraw` reads `target()`, so this reading stays until the lead settles cases 5, 7 and 16 of VECTORS.md |
+| G10 | a counted `withdraws` | an `Unseat` of the target's seat (the model's holders' withdrawal is `unseat ... duty_withdraw`) | TEXT (derivable): a counted `withdraws` ends what its target is; `Unseat` only where the target is a seat's conferral (a grant's end is `GrantEnd`; a roster version or a licence is retired, unseating nobody) |
+| G11 | the reader's acknowledgement | every row the reader signs naming a roster head is an `Ack` with `room()` that head's group | RULED (the heads ruling, H6), not yet in the text: the text states no row form for a reader's acknowledgement |
+| G12 | an election's id row (`of()` of a ballot, a decline, a seating) | the ballot names its election's row by `row-ref` | RULED: the ballot names its election's row (the last seating, or the roster's first version) by `row-ref`; the id is derived |
+| G13 | the set an election seating names | the seating cites the rows it counts under `refs.also.cites` | RULED: the seating cites each ballot, withdrawal and decline it counts under `refs.also.cites`; the store presents those rows |
+| G14 | `window:refused:v1` | a landing stating refused | TEXT: a `window:refused` row is a landing |
+| G15 | `SeatKind::Countersign` | a countersign key's further statement over the act's payload, presented as its own row (`Row::id` its statement id, `of()` the act's row id). The text says "countersigned by a key outside the officers" and names no row form. | HELD: the Constitution RULED a countersign is a VOICE on the act's own row (same payload, same row id), not a row. The crate reads `SeatKind::Countersign` as a row with `of()`, so this reading stays until the lead settles case 50 of VECTORS.md |
+| G16 | `standing::Kind::Removal` | a `membership:removal` whose `sub` is the key | TEXT: `member` equals `sub` |
+| G17 | scope `agent` | read from the seated key's `key:record` `identity_type` (contains `agent`); the widening itself carries no scope | TEXT (derivable): the record read is the one covering the admission's instant |
+| G18 | a `scope[]` with several tokens | one crate row per token, all under the one row id | TEXT: one conferral row is one seat with several scopes; the per-token crate rows share one row id and one fate (ended together, one seat in a duty count). A founding record's seats are per duty |
+| G19 | `official`, `overseen_by` | members of the affiliation's record named in prose (CC 4.4.3.12); `official`'s member name is not stated | TEXT for the names (`overseen_by`, one group id; `declared_cohort`; `licence_classes`; `designated_officials`), RULED for the place: payload members of the community record beside `consensus_protocol` |
+| G20 | `weights`, `need` of a weighted record | `weights` and `need` are payload members of the record | RULED: `weights` and `need`, whole numbers, payload members of the record beside `consensus_protocol` |
+| G21 | a quarantine release's `of()` | the withhold it lifts, under `refs.also.cites` | RULED: the release names the withhold under `refs.also.cites` |
+| G22 | a takedown's `of()` | the content row whose bytes hash to `content_sha256`; the notice names no row | TEXT: the notice reaches the establishing attestation the hash binds, at the scope its duty is over; a steward purge names a selection |
+| G23 | a reconsideration's `of()` | the notice, under `refs.also.cites`; the ruling in `outcome` | RULED: the reconsideration names the notice under `refs.also.cites` and carries its ruling in `outcome` |
+| G24 | a lift's `content()` | the removal, under `refs.also.cites` | TEXT: the lift cites the act it lifts under `refs.also.cites` |
+| G25 | the key end views' signer | the `kid` of the statement, as an identity reference: the same as every view under G1 | TEXT (derivable): liveness, cover and lapse are of the key that signed |
+| G26 | `KeyEndRow::statement().1` | the key record of the `kid` whose window covers the statement's `asserted_at`, found by the store | TEXT (derivable): any held record of the key covering the instant covers it |
+| G27 | `AudienceRow::family` | label -70002 respelled as its pattern | TEXT (derivable), and the reading is simpler: label -70002 respelled as its pattern, for every row |
+| G28 | a re-binding's `on()` | the binding it ends, under `refs.target` | TEXT (derivable): supersede-then-rebind names the old binding under `refs.target`; a re-signing at another scope ends nothing |
+| G29 | `RootBundle::sub_delegation` | every duty of the charter where `charter.scope` holds `sub_delegation` | TEXT (derivable): `sub_delegation` in `charter.scope`, per charter; whether the grant must also carry it is not yet stated |
+| G30 | `RootBundle::recovery` | the second element is the commitment digest, compared by equality, not the recovery key | TEXT: compared by equality, in constant time |
+| G31 | `RootBundle::recovers` | the new key is the key of the holder's new signing-key record cited under `refs.also.cites` | TEXT: the new key is the cited record that is not the `kid`'s |
+| G32 | `RootGrant::scope` | a token of the grant's `scope` naming the room | TEXT, and the guess was wrong: the room is a token of the grant's `scope` (CC 3.2 T7), not `community_id`; the token's spelling is not yet stated |
+| G33 | `KeyEndRow::roster_end` | a concluded eviction by the person's self roster; never a successor-signed row | PROVISIONAL: an eviction is a concluded act of the self roster and ends the key's seat by causal past, not its liveness; which member bounds the key's rows (`effective_at`, or none) is not yet in the text |
+| G34 | `AudienceRow::follows` | `ownership`, `duty`: `refs.also.cites`; `custody`: by digest; `stream:head`: by `sub` | TEXT for each family's placement (Same, Narrower, the blob's scope, the stream's room); RULED for the role: `ownership` and `duty` name their followed row under `refs.also.cites`; `custody` names its blob by digest, `stream:head` its stream by `sub` |

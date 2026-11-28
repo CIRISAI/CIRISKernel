@@ -360,6 +360,9 @@ case 31 with the rotation's old-key statement `wrong_signer` (the rotation then 
 Each faulted variant's expected answer is the crate's over the statements the door admits, and is written when
 the vector is.
 
-Cases that read a field this map marks NO WIRE FAMILY (an election decline, a withdrawal's one seat, a recovery
-widening's bundle, a landing's outcome, a merge's duty seats, a settler's siblings) cannot be minted until the
-Constitution gives the field a wire source; cases 43, 58 and 59 read such fields and wait on that.
+With the Constitution's rulings (WIRE_MAP.md, the findings and the guessed mappings), cases 43, 58 and 59 can be
+minted: the recovery widening names its grant under `refs.also.stands_on` (N3), and a landing's outcome is derived
+from its leaf (N6). The election cases (23, 24) mint with the ballots naming their election by `row-ref` and the
+seating citing its set (G12, G13). Two rulings conflict with how the crate reads its rows, so the cases on them wait:
+cases 5, 7 and 16 (a resignation, which the Constitution rules names no target, where the crate's `Withdraw` reads
+one, G9) and case 50 (a countersign, ruled a voice on the act's own row, where the crate reads a separate row, G15).
