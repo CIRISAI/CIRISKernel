@@ -387,6 +387,7 @@ plant "the line reads a seat row's voices without its cosign rows (cosigners onl
     if !mine {' '            r.cosigners().contains(own) && !anc.is_empty()
         });
     if !mine {'
+plant "the person line reads no key end: a thief's row with the reader's revoked key seeds its line (K1)" src/seat.rs '    let ends_ok = |a: usize| kv.is_none_or(|kv| kv.counts(c.g.row(a).id(), own));' '    let ends_ok = |_a: usize| kv.is_none_or(|_| true);'
 plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
 plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
             return Some(k.clone());

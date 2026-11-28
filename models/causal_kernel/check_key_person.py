@@ -758,7 +758,8 @@ def line_concludes(rows, reader, rid, kv=None):
 # no founding and p4's line still takes up S1; with no key view passed, the thief's row seeds the line and p4 waits.
 # (The key view here stands in for key_end's reading of the revocation: it counts p4's signature on every row but tn.)
 _TN = ST.R("tn", "note", "p4", ("S1r",))
-_KV_THIEF = lambda rid, k: not (rid == "tn" and k == "p4")
+_KV_UNCOUNTED = (("tn", "p4"),)                 # the key view's table: the (row, key) signatures it does not count
+_KV_THIEF = lambda rid, k: (rid, k) not in _KV_UNCOUNTED
 KV_LINE_CASES = [
     ("K1 on the line: the thief's row with p4's revoked key, the key view passed: p4's line takes up S1, z admitted",
      with_reader(LWORLD["P1"], "p4") + [_TN], "p4", "az", True, _KV_THIEF),
