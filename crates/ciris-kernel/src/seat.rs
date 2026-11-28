@@ -1958,7 +1958,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         };
         // a self roster's lone-path eviction that LANDED (its `landed` landing concluded: the window's outcome, as
         // every window) ends the target's seat as a counted eviction does: one ends reading
-        let landed: Vec<(usize, &R::Key, ObjOf<R>, &R::Word)> = cs
+        let landed0: Vec<(usize, &R::Key, ObjOf<R>, &R::Word, &R::Key)> = cs
             .iter()
             .copied()
             .filter(|i| !stale.contains(i))
@@ -1977,8 +1977,19 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     Obj::Row(gid) => by.get(gid)?.scope()?,
                     Obj::Key(_) => return None,
                 };
-                Some((i, t, o, sc))
+                Some((i, t, o, sc, p.signer()))
             })
+            .collect();
+        // two concurrent landed evictions of each other (each one's target the other's opener, over one roster) are
+        // contested (rule 4, CC 2.7.7 rule 5): neither lands, as where both object
+        let landed: Vec<(usize, &R::Key, ObjOf<R>, &R::Word)> = landed0
+            .iter()
+            .filter(|(i, t, o, _, s)| {
+                !landed0
+                    .iter()
+                    .any(|(j, t2, o2, _, s2)| j != i && o2 == o && t2 == s && t == s2 && g.concurrent(*i, *j))
+            })
+            .map(|(i, t, o, sc, _)| (*i, *t, o.clone(), *sc))
             .collect();
         let unseated = |oi: usize, k: &R::Key, sc: Sc<'a, R::Word>| {
             if landed.iter().any(|(l, t, lo, lsc)| {
@@ -3323,16 +3334,70 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
     for g in rows.iter().copied().filter(|g| self_founding(law, *g)) {
         founded.entry(g.signer()).or_default().push(g);
     }
-    let taken = |g: &R| {
-        rows.iter().any(|q| {
-            q.id() != g.id() && (q.names().iter().any(|n| n == g.id()) || q.obj() == Some(Obj::Row(g.id().clone())))
+    // TAKEN UP means COUNTED (r99 D8 to D10): a counted row over the founding (an addition, an eviction, or a landed
+    // self-roster window) signed by a LIVE voice of the identity, a key no counted or landed eviction from any of the
+    // identity's rosters has ended (an evicted genesis key is no voice anywhere); a key's own consent to its seat is
+    // no voice. A founding only named, or counted over only by such keys, takes up nothing
+    let by_id: BTreeMap<&R::Id, &R> = rows.iter().map(|q| (q.id(), *q)).collect();
+    let in_rosters = |q: &R, ids: &BTreeSet<&R::Id>| matches!(q.obj(), Some(Obj::Row(o)) if ids.contains(&o));
+    let evicted = |gs: &[&R]| -> BTreeSet<R::Key> {
+        let ids: BTreeSet<&R::Id> = gs.iter().map(|g| g.id()).collect();
+        let mut out: BTreeSet<R::Key> = BTreeSet::new();
+        for q in rows.iter().copied() {
+            if q.seat_kind() == SeatKind::Unseat && in_rosters(q, &ids) {
+                out.extend(q.to().iter().cloned());
+            }
+            if let Some((op, says)) = q.landing() {
+                if let Some(o) = by_id.get(op).filter(|_| says.as_ref() == "landed") {
+                    if let Some(t) = o.evicts().filter(|_| in_rosters(o, &ids)) {
+                        out.insert(t.clone());
+                    }
+                }
+            }
+        }
+        out
+    };
+    let taken = |g: &R, gone: &BTreeSet<R::Key>| {
+        let at = Some(Obj::Row(g.id().clone()));
+        rows.iter().copied().filter(|q| q.id() != g.id()).any(|q| {
+            let voices: Vec<&R::Key> = if matches!(q.seat_kind(), SeatKind::Offer | SeatKind::Unseat)
+                && q.conf() == Some(Conf::Group)
+                && q.obj() == at
+            {
+                core::iter::once(q.signer()).chain(q.cosigners().iter()).filter(|k| !q.to().contains(k)).collect()
+            } else if let Some((op, says)) = q.landing() {
+                match by_id.get(op) {
+                    Some(o)
+                        if says.as_ref() == "landed"
+                            && (o.evicts().is_some() || o.adds().is_some())
+                            && o.obj() == at =>
+                    {
+                        core::iter::once(o.signer()).chain(o.cosigners().iter()).collect()
+                    }
+                    _ => Vec::new(),
+                }
+            } else {
+                Vec::new()
+            };
+            voices.iter().any(|k| !gone.contains(*k))
         })
     };
+    // a founding that seats only its genesis key adds no device: untaken, it is no rival (K7)
+    let bare = |g: &R| g.to().iter().all(|k| k == g.signer()) || g.cosigners().iter().all(|k| k == g.signer());
     let mut rosters: BTreeSet<&R::Id> = BTreeSet::new();
     for gs in founded.values() {
-        let t: Vec<&R> = if gs.len() == 1 { gs.clone() } else { gs.iter().copied().filter(|g| taken(g)).collect() };
-        if let [g] = t.as_slice() {
-            rosters.insert(g.id());
+        if gs.len() == 1 {
+            rosters.insert(gs[0].id());
+            continue;
+        }
+        let gone = evicted(gs);
+        let t: Vec<&R> = gs.iter().copied().filter(|g| taken(g, &gone) || !bare(g)).collect();
+        match t.as_slice() {
+            [g] => {
+                rosters.insert(g.id());
+            }
+            [] => rosters.extend(gs.iter().map(|g| g.id())),
+            _ => {}
         }
     }
     for g in rows.iter().copied() {

@@ -41,6 +41,8 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     landed_add_unread     a self roster's landed lone-path addition seats nothing
     rival_untaken_counted an untaken rival founding makes the reader wait (r99 D1: a bare founding silences the person)
     self_founding_family  a family's founding read as a self roster's (a rival of the person's roster)
+    rival_named_taken     a row naming a rival founding takes it up (r99 D8: one thief row stalls the person)
+    mutual_evictions_land two concurrent lone evictions of each other both land (r99 M1: the roster emptied)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -480,8 +482,9 @@ R74_CASES += [
     ("r99 D1: the evicted p1's bare founding S1r concludes (nothing in its past)", GW + [GEV, RIV], "S1r", True, RULE),
     ("r99 D2: and the honest devices p1b, p2 and p3 still admit z, naming it", GW + [GEV, RIV,
      admit_z(("p1b", "p2", "p3"), ("evg", "S1r"))], "az", True, RULE),
-    ("r99 D4: a row in the count's past naming both foundings takes up both: the reader waits, p1b no voice",
-     GW + [GEV, RIV, RIVH, admit_z(("p1b", "p2", "p3"), ("evg", "hh"))], "az", False, RULE),
+    ("r99 D4, under D8 (taken up means counted): a row naming both foundings takes up neither; S1 is counted over by "
+     "live voices, so p1b, p2 and p3 admit z", GW + [GEV, RIV, RIVH, admit_z(("p1b", "p2", "p3"), ("evg", "hh"))], "az",
+     True, RULE),
     ("r99 D5: the devices are no keys of the rival roster, so their eviction of p1 from it does not conclude",
      GW + [GEV, RIV, evict("evr", "S1r", "p1", ("p1b", "p1c"), ("S1r",))], "evr", False, RULE),
     ("r99 D6: no eviction; the stolen genesis key founds a rival: p1b, p2 and p3 admit z",
@@ -492,6 +495,26 @@ R74_CASES += [
 R74_CASES += [
     ("r99 drift: a family founding by p1 (scope self, group_kind family) after S1 is no self roster, so no rival: it "
      "concludes", GW + [dict(found("F1", "p1"), names=("a1c",), group_kind="family")], "F1", True, RULE),
+]
+# the review r99 part 2 (D8 to D10): TAKEN UP means COUNTED by a live voice of the identity, so one thief row naming
+# its rival stalls nothing; a thief's counted row on the rival takes it up only while the thief is a live voice
+RT = ST.cosign("t", "p1", "t", ("S1r",))                                 # the thief names only its rival
+RT2 = ST.cosign("t2", "p1", "t2", ("S1r", "a1c"))                       # names its rival and the honest roster's head
+RTA = add("ta", "S1r", "p1x", ("p1",), ("S1r",))
+RIVD = ST.offer("S1d", "p1", ("p1", "p1x"), "self", "@", "self", cosigners=("p1x",))   # a rival seating p1x                         # the thief's counted addition on its rival
+R74_CASES += [
+    ("r99 D8: a thief row naming S1r in the honest count's past stalls nothing: p1b, p2 and p3 admit z",
+     GW + [GEV, RIV, RT, admit_z(("p1b", "p2", "p3"), ("evg", "t"))], "az", True, RULE),
+    ("r99 D9: nor one naming S1r and S1's head", GW + [GEV, RIV, RT2, admit_z(("p1b", "p2", "p3"), ("evg", "t2"))], "az",
+     True, RULE),
+    ("r99 D10: with no eviction, the same thief row stalls nothing either",
+     GW + [RIV, RT2, admit_z(("p1b", "p2", "p3"), ("a1c", "t2"))], "az", True, RULE),
+    ("r99: the thief (a live voice, no eviction yet) counts an addition on its rival: two rosters with live counted "
+     "history, the reader waits", GW + [RIV, RTA, admit_z(("p1b", "p2", "p3"), ("a1c", "ta"))], "az", False, RULE),
+    ("r99: a rival founding cosigned by a thief's own device seats a key: no bare rival, the reader waits",
+     GW + [RIVD, admit_z(("p1b", "p2", "p3"), ("a1c", "S1d"))], "az", False, RULE),
+    ("r99: after the devices evict p1, its counted addition on the rival is by no live voice: S1 alone, z admitted",
+     GW + [GEV, RIV, RTA, admit_z(("p1b", "p2", "p3"), ("evg", "ta"))], "az", True, RULE),
 ]
 PERSON_KEYS_CASES += [
     ("r99 D3: with the bare rival held, p1's live keys are its devices", GW + [GEV, RIV], "p1", ["p1b", "p1c"]),
@@ -553,6 +576,9 @@ LANDED_CASES = [
      LANDED + [add("d3", "S", "k3", ("k1",), ("L",))], lambda S: bool(S.C.get("d3")), True),
     ("and g1, evicted, adds nothing", LANDED + [add("d3", "S", "k3", ("g1",), ("L",))], lambda S: bool(S.C.get("d3")),
      False),
+    ("r99 M1: two concurrent lone-path evictions of each other, both silent, are contested: neither lands",
+     [GS, GD1] + lone_evict("k1", "g1", False) + lone_evict("g1", "k1", False, "op2", "2"),
+     lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
     ("a landed addition without the new key's own consent seats nothing", ADDED_NC,
      lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
 ]
@@ -564,7 +590,7 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread",
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
           "rebinding_unread", "landed_eviction_unread", "landed_add_unread", "rival_untaken_counted",
-          "self_founding_family")
+          "self_founding_family", "rival_named_taken", "mutual_evictions_land")
 
 
 def answer(rows, k):

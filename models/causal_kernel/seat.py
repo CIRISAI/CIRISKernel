@@ -2680,12 +2680,39 @@ def rosters_of(P, k, keep=lambda g: True):
     if "rival_roster_kept" not in MUT:
         mine = {}
         for g in selves: mine.setdefault(g["signer"], []).append(g)
-        taken = lambda g: any(q["id"] != g["id"] and (g["id"] in q.get("names", ()) or q.get("obj") == g["id"]) for q in P)
+        # TAKEN UP means COUNTED (r99 D8 to D10): a counted row over the founding (an addition, an eviction, or a
+        # landed self-roster window) signed by a LIVE voice of the identity: a key no counted or landed eviction from
+        # any of the identity's rosters has ended (an evicted genesis key is no voice anywhere). A founding only
+        # named, or counted over only by such keys, takes up nothing (MUTATION rival_named_taken: naming takes it up)
+        def evicted(p):
+            ids = {g["id"] for g in mine.get(p, ())}
+            out = {k for q in P if q["kind"] == "unseat" and q.get("obj") in ids for k in q.get("to", ())}
+            out |= {p_["target"] for L in P if L["kind"] == "landing" and L.get("says") == "landed"
+                    for p_ in [by.get(L.get("of"))] if p_ is not None and p_.get("window") == "self_roster_evict"
+                    and p_.get("obj") in ids and p_.get("target")}
+            return out
+        def taken(g):
+            if "rival_named_taken" in MUT:
+                return any(q["id"] != g["id"] and (g["id"] in q.get("names", ()) or q.get("obj") == g["id"]) for q in P)
+            gone = evicted(g["signer"])
+            def counted(q):
+                if q["kind"] in ("offer", "unseat") and q.get("conf") == "group" and q.get("obj") == g["id"]:
+                    return signers(q) - frozenset(q.get("to", ()))         # a key's own consent to its seat is no voice
+                if q["kind"] == "landing" and q.get("says") == "landed":
+                    p_ = by.get(q.get("of"))
+                    if p_ is not None and p_.get("window") in ("self_roster_evict", "self_roster_add") \
+                            and p_.get("obj") == g["id"]:
+                        return signers(p_)
+                return frozenset()
+            return any(q["id"] != g["id"] and counted(q) - gone for q in P)
+        # a founding that seats only its genesis key adds no device: untaken, it is no rival (K7)
+        bare = lambda g: frozenset(g.get("to", ())) <= {g["signer"]} or signers(g) <= {g["signer"]}
         one = []
         for gs in mine.values():
             if len(gs) == 1: one += gs; continue
-            t = gs if "rival_untaken_counted" in MUT else [g for g in gs if taken(g)]
+            t = gs if "rival_untaken_counted" in MUT else [g for g in gs if taken(g) or not bare(g)]
             if len(t) == 1: one += t
+            elif not t: one += gs                                  # bare foundings alone: each seats only the identity
         selves = one
     if "person_evict_unread" in MUT:                              # MUTATION: an admission in the past is enough
         return sorted({g["id"] for g in selves if any(q["kind"] == "offer" and q.get("obj") == g["id"] and k in q["to"]
@@ -2921,9 +2948,17 @@ def landed_evictions(S, Cs, V=frozenset()):
     """The self rosters' lone-path evictions that landed (CC 3.3.6.4, 4.5.13: the `self_roster_evict` window): each
     concluded landing that says `landed` of a concluded opener with a target, read as the counted eviction it is, an
     unseat of the target's seat in the roster's own scope (its `cuts`), at the landing."""
+    ws = [(L, p, sc, obj) for L, p, sc, obj in landed_windows(S, Cs, "self_roster_evict", V) if p.get("target") is not None]
+    # two concurrent landed evictions of each other (each one's target the other's opener, over one roster) are
+    # contested (rule 4, CC 2.7.7 rule 5): neither lands, as where both object (MUTATION mutual_evictions_land)
+    def mutual(L, p, obj):
+        return "mutual_evictions_land" not in MUT and any(
+            L2["id"] != L["id"] and o2 == obj and p2["target"] == p["signer"] and p["target"] == p2["signer"]
+            and L["id"] not in S.anc.get(L2["id"], ()) and L2["id"] not in S.anc.get(L["id"], ())
+            for L2, p2, _, o2 in ws)
     return [dict(L, kind="unseat", to=(p["target"],), scope=sc, obj=obj, head=tuple(L.get("names", ())),
                  cuts=(("seat", p["target"], sc, obj),))
-            for L, p, sc, obj in landed_windows(S, Cs, "self_roster_evict", V) if p.get("target") is not None]
+            for L, p, sc, obj in ws if not mutual(L, p, obj)]
 
 
 def seats_of(rows):
