@@ -16,6 +16,13 @@ every order: a wait names only rows not held and holds until one of them is held
 `waits_anchor_unread`, `lacks_first_only`, `live_at_m`, `live_at_founding`; replayed by `tests/root.rs`
 (`waits_replay`, every answer after every arrival) and `tests/acts.rs` (`infra_live_replay`), with
 `tests/held.rs` (`lacks_names_what_a_row_waits_on`).
+**A group referenced by id alone never picks between founding rows** (the Constitution's ruling): `SeatRow::group_id`
+(default none), `seat::group_of(rows, id) -> Result<Option<Obj>, Rivals<Id>>` (two or more founding rows held
+under the id: `Rivals`, concluding nothing) and `seat::group_at` (a reference naming a row of one chain resolves
+to it). The crate resolves no such reference itself; the caller calls it (ADOPTING.md). Seven cases in
+`check_acts.py` GROUP_OF (two founding records under one id; a trust edge by that id concludes nothing; a row at
+the head of one concludes on that chain), plant `group_first_founding`, replayed by `tests/acts.rs`
+(`group_of_replay`).
 
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.

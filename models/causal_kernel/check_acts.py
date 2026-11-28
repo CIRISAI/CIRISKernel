@@ -803,6 +803,35 @@ def infra_live_problems(plant=None):
     return out
 
 
+# A reference naming a group by id alone (the Constitution's ruling): it never picks between two founding rows held
+# under the id (seat.group_of); a reference naming a row of one chain resolves to that chain (seat.group_at). A trust
+# edge to a community by id is such a reference: with two founding records under its id it reaches nothing. (name,
+# rows, the reference: ("id", gid) or ("head", row id), answer: the group's founding row, ("rivals", ids), or None)
+GA = ST.offer("ga", "A", ("A", "B"), "member", "@", "self", cosigners=("B",), group_id="G")
+GB = ST.offer("gb", "C", ("C", "D"), "member", "@", "self", cosigners=("D",), group_id="G")
+XA = grp("xa", "offer", "E", "member", "cosigned_act", heads=("ga",), signer="A", cosigners=("B", "E"), obj="ga")
+EDGE = CK.row("e1", "trust_edge", "R", (), group="G")
+GROUP_OF = [
+    ("one founding record declares G: a reference by G names it", [GA], ("id", "G"), "ga"),
+    ("two founding records under G: a reference by G concludes nothing, naming both", [GA, GB], ("id", "G"),
+     ("rivals", ("ga", "gb"))),
+    ("a trust edge to the community by id G, two founding records held under it: the edge concludes nothing",
+     [GA, GB, EDGE], ("edge", "e1"), ("rivals", ("ga", "gb"))),
+    ("the same edge with one founding record held: it names that one", [GA, EDGE], ("edge", "e1"), "ga"),
+    ("a row naming the head of one of them (an admission at ga) concludes on that chain", [GA, GB, XA], ("head", "xa"),
+     "ga"),
+    ("a reference by the founding row's own digest names it, whatever else shares its id", [GA, GB], ("id", "gb"), "gb"),
+    ("no founding record held under the id: nothing", [GA], ("id", "H"), None),
+]
+
+
+def group_answer(rows, ref, plant=None):
+    with planted(plant):
+        by = {r["id"]: r for r in rows}
+        if ref[0] == "head": return ST.group_at(by, ref[1])
+        return ST.group_of(rows, by[ref[1]]["group"] if ref[0] == "edge" else ref[1])
+
+
 # The review's A1 and A3 (rows of r56/tools/b2.py and b4.py): the head rules' job and room-keys-fix's (RK2). They hold
 # once `heads` and `room-keys-fix` are merged; until then main() reports them and does not fail on them.
 G3 = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"))
@@ -974,7 +1003,7 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread",
           "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread", "contested_one_sided",
           "self_voice_on_offer", "multi_target_removal", "multi_target_recall", "multi_target_duty_withdraw",
-          "multi_target_demotion", "live_at_m", "live_at_founding")
+          "multi_target_demotion", "live_at_m", "live_at_founding", "group_first_founding")
 
 
 @contextlib.contextmanager
@@ -1061,6 +1090,8 @@ def main():
         if undecided(rows, rid) != want:
             problems.append("undecided %s: got %s, expected %s" % (name, undecided(rows, rid), want))
     problems += infra_live_problems()
+    problems += ["group_of %s: got %s, expected %s" % (c[0], group_answer(c[1], c[2]), c[3]) for c in GROUP_OF
+                 if group_answer(c[1], c[2]) != c[3]]
     for name, rows, rid, want in CONCLUDE_Q4:
         if concludes(rows, rid, True) != want:
             problems.append("%s: got %s, expected %s" % (name, concludes(rows, rid, True), want))
@@ -1081,6 +1112,7 @@ def main():
         hit += ["dissolved: " + c[0] for c in DISSOLVED if dissolved(c[1], plant) != c[2]]
         hit += ["undecided: " + c[0] for c in UNDECIDED if undecided(c[1], c[2], plant) != c[3]]
         hit += infra_live_problems(plant)
+        hit += ["group_of: " + c[0] for c in GROUP_OF if group_answer(c[1], c[2], plant) != c[3]]
         caught += bool(hit)
         print("  plant %-16s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
         if not hit:

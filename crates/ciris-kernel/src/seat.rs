@@ -234,6 +234,12 @@ pub trait SeatRow: Row {
     fn bundle(&self) -> Option<&Self::Id> {
         None
     }
+    /// A group's founding record: the id it declares for the group, which a reference naming the group by id
+    /// alone names ([`group_of`]). A founding row is its group's object by its own digest whatever it declares.
+    /// Default `None`: the row declares none.
+    fn group_id(&self) -> Option<&Self::Id> {
+        None
+    }
     /// An admission's role: `founder` on an offer of the member seat over a family seats the founder role too (a
     /// family's one-row founder admission, F1); on a change of an infrastructure community's record (scope
     /// `record`), the keys it names are seated as founders (a founders' amendment, CC 3.1.3.2). Default `None`.
@@ -4069,6 +4075,45 @@ pub fn seat_rule_why<R: SeatRow, S: CutSpec<R>>(
         (false, Some(x)) => Err(crate::Wait(x)),
         (v, _) => Ok(v),
     }
+}
+
+/// The founding rows a reference by id alone names, where more than one is held under the id: ascending, each
+/// once ([`group_of`]). Not a [`crate::Wait`]: every rival is held, so no arrival settles it; a reference that names
+/// a row of one chain (its founding row's digest, or a row at a head of it: [`group_at`]) does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Rivals<I>(pub Vec<I>);
+
+/// The group a reference naming it BY ID ALONE resolves to among `rows` (an acceptance edge to a community, a
+/// licence's authority, `overseen_by`, a root grant's room token, a listing's group: the Constitution's ruling that
+/// such a reference never picks between two founding rows). The founding rows held under `gid` are those whose
+/// own digest is `gid` or that declare it ([`SeatRow::group_id`]). Exactly one: its object, `Obj::Row` of its
+/// digest. Two or more: [`Rivals`], and the reference concludes nothing. None held: `Ok(None)`.
+///
+/// The crate resolves no reference by id itself: [`crate::trust`] walks keys, and a root grant's scope is compared
+/// as a row digest ([`crate::root::RootReading`]). A caller that holds such a reference as a group id resolves it
+/// here first, and reads nothing through it while it is [`Rivals`].
+pub fn group_of<'r, R: SeatRow + 'r>(
+    rows: impl IntoIterator<Item = &'r R>,
+    gid: &R::Id,
+) -> Result<Option<ObjOf<R>>, Rivals<R::Id>> {
+    let mut held: Vec<R::Id> = rows
+        .into_iter()
+        .filter(|r| founding(*r) && (r.id() == gid || r.group_id() == Some(gid)))
+        .map(|r| r.id().clone())
+        .collect();
+    held.sort_unstable();
+    held.dedup();
+    match held.len() {
+        0 => Ok(None),
+        1 => Ok(Some(Obj::Row(held.remove(0)))),
+        _ => Err(Rivals(held)),
+    }
+}
+
+/// The group a reference naming a row of its chain resolves to: the object of held row `head` (a founding row is
+/// its own), whatever other founding rows share its declared id. `None` where `head` is not held or carries no object.
+pub fn group_at<'r, R: SeatRow + 'r>(get: &dyn Fn(&R::Id) -> Option<&'r R>, head: &R::Id) -> Option<ObjOf<R>> {
+    get(head)?.obj()
 }
 
 /// An infrastructure room's liveness (CC 3.2, "Live and stalled"), as [`infra_live`] reads it.

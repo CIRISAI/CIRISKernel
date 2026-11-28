@@ -726,6 +726,17 @@ def infra_live_cases(AC):
     return out
 
 
+def group_of_cases(AC):
+    out = []
+    for name, rows, ref, want in AC.GROUP_OF:
+        refs = {}
+        gid = ref[1] if ref[0] == "id" else next((r.get("group") for r in rows if r["id"] == ref[1]), None)
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "ref": ref[0],
+                    "id": gid if ref[0] != "head" else ref[1],
+                    "group": {"rivals": list(want[1])} if isinstance(want, tuple) else want})
+    return out
+
+
 def dissolved_cases(AC):
     out = []
     for name, rows, want in AC.DISSOLVED:
@@ -757,6 +768,7 @@ def acts_cases():
                                      for w, _ in AC.INFRA_WORDS],
             "undecided": undecided_cases(AC),
             "infra_live": infra_live_cases(AC),
+            "group_of": group_of_cases(AC),
             "dissolved": dissolved_cases(AC)}
 
 

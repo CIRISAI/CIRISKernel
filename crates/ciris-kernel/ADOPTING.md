@@ -223,6 +223,14 @@ any other arrival.
   kept; a recovery widening concluded before its grant arrived concluded nothing there. When the row a
   `seat_rule_why` wait names arrives, conclude that row and its descendants again (a `Held` built afresh over
   the kept rows, or `seat::conclude`), not only the row.
+- **A group referenced by id alone** (an acceptance edge to a community, a licence's authority, `overseen_by`, a
+  root grant's room token, a listing's group) never picks between two founding rows held under that id (the
+  Constitution's ruling). Present a founding record's declared id as `SeatRow::group_id`, and resolve every such
+  reference with `seat::group_of(rows, id)` before reading through it: one founding row, its `Obj::Row`; two or
+  more, `Rivals` naming them, and the reference concludes nothing (it is no `Wait`: every rival is held, and no
+  arrival settles it). A reference that names a row of one chain resolves to that chain (`seat::group_at`). The
+  crate resolves no reference by id itself (`trust` walks keys; a root grant's scope is compared as a row
+  digest), so this is the caller's duty wherever its wire carries an id instead of a digest.
 - **Liveness.** `seat::infra_live(c, law, spec, obj, at)` gives an infrastructure room's `Liveness` at held row
   `at`: `Live`, or `Stalled { active, m }` (fewer than M + 1 active founders, the count the seat rule reads).
 

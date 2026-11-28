@@ -444,6 +444,26 @@ def seat_rule_why(r, P, past, table=None, other=None):
     return ("waits", w) if not v and w is not None else bool(v)
 
 
+def group_of(rows, gid):
+    """The group a reference naming it BY ID ALONE resolves to (an acceptance edge to a community, a licence's
+    authority, overseen_by, a root grant's room token, a listing's group: the Constitution's ruling that such a
+    reference never picks between two founding rows). The founding rows held under gid: those whose own id is gid or
+    that declare it (`group_id`). Exactly one: its id (the object). Two or more: ("rivals", their ids ascending), and the
+    reference concludes nothing. None held: None (MUTATION group_first_founding: the first of the rivals)."""
+    held = sorted({r["id"] for r in rows if r.get("obj") == r["id"]
+                   and (r["id"] == gid or r.get("group_id") == gid)})
+    if not held: return None
+    if len(held) == 1 or "group_first_founding" in MUT: return held[0]
+    return ("rivals", tuple(held))
+
+
+def group_at(by, head):
+    """The group a reference naming a row of its chain resolves to: the object of held row `head`, whatever other
+    founding rows share its declared id. None where it is not held or carries no object."""
+    r = by.get(head)
+    return r.get("obj") if r is not None else None
+
+
 def infra_live(S, obj, at):
     """Infrastructure room obj's liveness at held row `at` (CC 3.2, "Live and stalled"): the founder seats at `at` as a
     head (the concluded rows at or before it), less the keys whose leaving is among them, against the M of the record
