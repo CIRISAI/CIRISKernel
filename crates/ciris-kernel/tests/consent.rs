@@ -6,7 +6,7 @@
 
 mod common;
 use ciris_kernel::consent::{self, ConsentRow, Kind};
-use ciris_kernel::layers::{arrive, conclude, kept, Concluded};
+use ciris_kernel::layers::{arrive, conclude, kept, Concluded, Past};
 use common::*;
 use std::collections::BTreeSet;
 
@@ -22,6 +22,9 @@ struct CRow {
     until: Option<i64>,
     of: Option<String>,
     revokes: Option<(String, i64)>,
+    federation: bool,
+    // on a withdrawal: the owner of the withdrawn grant's signer over the withdrawal's past, as the model reads it
+    owner_of_signer: Option<String>,
 }
 
 impl ciris_kernel::Row for CRow {
@@ -56,6 +59,9 @@ impl ConsentRow for CRow {
     fn until(&self) -> Option<i64> {
         self.until
     }
+    fn federation(&self) -> bool {
+        self.federation
+    }
     fn withdraws(&self) -> Option<&String> {
         self.of.as_ref()
     }
@@ -73,6 +79,7 @@ fn row(j: &J) -> CRow {
         "grant" => Kind::Grant,
         "withdrawal" => Kind::Withdrawal,
         "revocation" => Kind::Revocation,
+        "announcement" => Kind::Announcement,
         "other" => Kind::Other,
         k => panic!("kind {k}"),
     };
@@ -87,7 +94,14 @@ fn row(j: &J) -> CRow {
         until: opt_i(j, "until"),
         of: j.get("of").and_then(|v| v.opt_s()),
         revokes: (kind == Kind::Revocation).then(|| (j.at("key").s().to_string(), j.at("ra").i())),
+        federation: j.get("federation").is_some_and(|v| v.b()),
+        owner_of_signer: j.get("owner_of_signer").and_then(|v| v.opt_s()),
     }
+}
+
+// the caller's owner reading at a withdrawal: here, the model's, carried on the withdrawal row
+fn rule(p: &Past<'_, '_, CRow>) -> bool {
+    consent::conclude_rule(p, |_, p| p.row().owner_of_signer.clone())
 }
 
 fn ask(c: &Concluded<'_, CRow>, a: &J) -> J {
@@ -111,6 +125,13 @@ fn ask(c: &Concluded<'_, CRow>, a: &J) -> J {
             let ps = consent::peer_set(c, &a.at("principal").s().to_string(), at.as_ref(), now);
             J::Arr(ps.into_iter().map(J::Str).collect())
         }
+        "bilateral" => J::Bool(consent::bilateral(
+            c,
+            &a.at("a").s().to_string(),
+            &a.at("b").s().to_string(),
+            at.as_ref(),
+            now,
+        )),
         "force" => J::Bool(consent::in_force(c, &a.at("grant").s().to_string(), at.as_ref(), now)),
         k => panic!("ask {k}"),
     }
@@ -124,10 +145,10 @@ fn case_table() {
         let rows: Vec<CRow> = case.at("rows").arr().iter().map(row).collect();
         let rev: Vec<CRow> = rows.iter().rev().cloned().collect();
         let held = [
-            conclude(kept(&rows, |_| true), |p| consent::conclude_rule(p), None),
-            conclude(kept(&rev, |_| true), |p| consent::conclude_rule(p), None),
-            arrive(&rows, |p| consent::conclude_rule(p), None, |_| true),
-            arrive(&rev, |p| consent::conclude_rule(p), None, |_| true),
+            conclude(kept(&rows, |_| true), rule, None),
+            conclude(kept(&rev, |_| true), rule, None),
+            arrive(&rows, rule, None, |_| true),
+            arrive(&rev, rule, None, |_| true),
         ];
         for c in &held {
             for a in case.at("asks").arr() {
@@ -164,9 +185,11 @@ fn classes_and_fan_out() {
         until: None,
         of: None,
         revokes: None,
+        federation: false,
+        owner_of_signer: None,
     };
     let rows = vec![g("g1", "N", "P"), g("g2", "O", "Q"), g("g3", "X", "R")];
-    let c = conclude(kept(&rows, |_| true), |p| consent::conclude_rule(p), None);
+    let c = conclude(kept(&rows, |_| true), rule, None);
     let addressed: BTreeSet<String> = ["P", "Q", "R", "S"].iter().map(|s| s.to_string()).collect();
     let set = consent::replication_set(&c, &"N".into(), Some(&"O".into()), &addressed, None, None);
     assert_eq!(set, ["P", "Q"].iter().map(|s| s.to_string()).collect());

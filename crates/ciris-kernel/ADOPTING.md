@@ -521,8 +521,10 @@ a `consent:replication:v1` grant in force from the node or its one owner to that
 class. Present each grant as `Kind::Grant` (`attesting_key_id` the signer, `peer()` the one `subject_key_ids` entry,
 `classes()` the `attestation_prefixes` as signed, `at()` its `asserted_at`, `until()` its `valid_until`), each
 `withdraws` or `recants` of one as `Kind::Withdrawal` naming it, each key's own revocation as `Kind::Revocation`, and
-every other row (the node's own rows the reading is at among them) as `Kind::Other`; conclude them with
-`consent::conclude_rule` beside the families' own rules. Pass the owner from `seat::Seats::one("owner", node)` read
+each node's announcement as `Kind::Announcement`, and every other row (the node's own rows the reading is at
+among them) as `Kind::Other`; conclude them with `consent::conclude_rule` beside the families' own rules, giving it
+the owner of a key over a withdrawal's past (`Seats::one("owner", key)` over that past). A withdrawal by the grant's
+signer, its peer, or the signer's owner there ends the grant; any other key's concludes nothing. Pass the owner from `seat::Seats::one("owner", node)` read
 over the past of the row the answer is at (`None` with none or two). Read at the row being sent, or the node's own
 latest row, never at a clock; `now` is the caller's instant for the term only. Not read here: the `cohorts` allow list
 of an owner's grant for its own node (CC 6.1.5.3), and whether the class itself is a grammar the namespace admits

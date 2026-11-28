@@ -29,7 +29,13 @@ import consent as C  # noqa: E402
 import key_end as KE  # noqa: E402
 
 ST = C.ST
-G, W, N_, B = C.grant, C.withdraws, C.note, C.binding
+W, N_, B, AN = C.withdraws, C.note, C.binding, C.announce
+
+
+def G(*a, fed=False, **kw):
+    """A grant held between the two nodes (cohort_scope not federation), unless `fed`: the federation cases below
+    announce both parties."""
+    return C.grant(*a, fed=fed, **kw)
 CAP = "capacity:cpu:v1"
 TRC = "trace:complete:v1"
 
@@ -43,7 +49,7 @@ def rev_by(id, signer, key, ra):
     return C.CK.row(id, "revoke", signer, (), key=key, ra=ra)
 
 
-S_, P_, F_ = "send", "peers", "force"
+S_, P_, F_, BI = "send", "peers", "force", "bilateral"
 
 CASES = [
     # ---- a grant moves its classes and not others ----
@@ -82,6 +88,18 @@ CASES = [
     ("a tie on asserted_at goes to the lowest id",
      [G("ga", "N", "P", ("trace:",), 2), G("gb", "N", "P", ("capacity:",), 2), N_("n", "N", ("ga", "gb"))],
      [(S_, "N", "P", TRC, "n", None, "ga"), (S_, "N", "P", CAP, "n", None, None)]),
+    ("causality beats the instant: a narrowing that names the grant replaces it though it states an earlier instant",
+     [G("g1", "N", "P", ("capacity:", "trace:"), 5), G("g2", "N", "P", ("capacity:",), 1, ("g1",)),
+      N_("n", "N", ("g2",))],
+     [(S_, "N", "P", TRC, "n", None, None), (S_, "N", "P", CAP, "n", None, "g2"), (F_, "g1", "n", None, False)]),
+    ("no silent drop: a narrower grant that names no grant and states an earlier instant narrows nothing",
+     [G("g1", "N", "P", ("capacity:", "trace:"), 5), G("g2", "N", "P", ("capacity:",), 1), N_("n", "N", ("g1", "g2"))],
+     [(S_, "N", "P", TRC, "n", None, "g1"), (F_, "g2", "n", None, False)]),
+    ("a grant in another's past drops out before any instant is read; the instant orders what is left",
+     [G("g1", "N", "P", ("post",), 9), G("g2", "N", "P", ("trace:",), 1, ("g1",)), G("g3", "N", "P", ("capacity:",), 3),
+      N_("n", "N", ("g2", "g3"))],
+     [(S_, "N", "P", CAP, "n", None, "g3"), (S_, "N", "P", "post", "n", None, None),
+      (S_, "N", "P", TRC, "n", None, None)]),
     ("grants to two peers are two chains: neither replaces the other",
      [G("g1", "N", "P", ("trace:",), 1), G("g2", "N", "Q", ("capacity:",), 2), N_("n", "N", ("g1", "g2"))],
      [(S_, "N", "P", TRC, "n", None, "g1"), (S_, "N", "Q", CAP, "n", None, "g2"), (P_, "N", "n", None, {"P", "Q"})]),
@@ -99,9 +117,25 @@ CASES = [
     ("a recants ends it as a withdraws does",
      [G("g", "N", "P", ("capacity:",), 1), W("w", "N", "g", kind="recants"), N_("n", "N", ("w",))],
      [(S_, "N", "P", CAP, "n", None, None)]),
-    ("a withdrawal by the peer, or by any other key, concludes nothing and ends nothing",
-     [G("g", "N", "P", ("capacity:",), 1), W("wp", "P", "g"), W("wx", "X", "g"), N_("n", "N", ("wp", "wx"))],
+    ("the peer's withdrawal ends the grant: stop sending to me (CC 2.4.1.1 rule 2)",
+     [G("g", "N", "P", ("capacity:",), 1), W("wp", "P", "g"), N_("n", "N", ("wp",))],
+     [(S_, "N", "P", CAP, "n", None, None), (F_, "g", "n", None, False)]),
+    ("a third key's withdrawal concludes nothing and ends nothing",
+     [G("g", "N", "P", ("capacity:",), 1), W("wx", "X", "g"), N_("n", "N", ("wx",))],
      [(S_, "N", "P", CAP, "n", None, "g"), (F_, "g", "n", None, True)]),
+    ("the owner of the grant's signer withdraws the node's own grant (the owner's word governs)",
+     ob() + [G("gn", "N", "P", ("capacity:",), 1), W("wo", "O", "gn", ("ab",)), N_("n", "N", ("wo",))],
+     [(S_, "N", "P", CAP, "n", None, None), (F_, "gn", "n", None, False)]),
+    ("the owner is read at the withdrawal: one that does not have the binding in its past concludes nothing",
+     ob() + [G("gn", "N", "P", ("capacity:",), 1), W("wo", "O", "gn"), N_("n", "N", ("wo", "ab"))],
+     [(S_, "N", "P", CAP, "n", None, "gn")]),
+    ("a former owner's withdrawal ends nothing: its acceptance was withdrawn in the withdrawal's past",
+     ob() + [ST.withdraw("wb", "O", "ab"), G("gn", "N", "P", ("capacity:",), 1), W("wo", "O", "gn", ("wb",)),
+             N_("n", "N", ("wo",))],
+     [(S_, "N", "P", CAP, "n", None, "gn")]),
+    ("the owner withdraws its own grant for its node as its signer",
+     ob() + [G("go", "O", "P", ("capacity:",), 1), W("wo", "O", "go"), N_("n", "N", ("ab", "wo"))],
+     [(S_, "N", "P", CAP, "n", None, None)]),
     ("withdrawing the narrowing revives no earlier grant",
      [G("g1", "N", "P", ("capacity:", "trace:"), 1), G("g2", "N", "P", ("capacity:",), 2, ("g1",)),
       W("w", "N", "g2"), N_("n", "N", ("w",))],
@@ -174,11 +208,37 @@ CASES = [
     ("a revocation by another key than the signer's does not end its voice",
      [G("g1", "N", "P", ("capacity:",), 5), rev_by("rv", "X", "N", 3), N_("n", "N", ("g1",))],
      [(S_, "N", "P", CAP, "n", None, "g1")]),
+
+    # ---- G -> P and P -> G are independent; bilateral is both in force ----
+    ("two directions, two grants: withdrawing N -> P leaves P -> N, and the peering is no longer bilateral",
+     [G("gNP", "N", "P", ("capacity:",), 1), G("gPN", "P", "N", ("observation:",), 1), N_("n0", "N", ("gNP", "gPN")),
+      W("w", "N", "gNP", ("n0",)), N_("n1", "N", ("w",))],
+     [(BI, "N", "P", "n0", None, True), (BI, "N", "P", "n1", None, False),
+      (S_, "P", "N", "observation:reachability:v1", "n1", None, "gPN"), (S_, "N", "P", CAP, "n1", None, None)]),
+    ("one direction alone is not bilateral",
+     [G("gNP", "N", "P", ("capacity:",), 1), N_("n", "N", ("gNP",))],
+     [(BI, "N", "P", "n", None, False), (BI, "P", "N", "n", None, False), (S_, "N", "P", CAP, "n", None, "gNP")]),
+
+    # ---- a grant an unannounced node signs or is named in is never at federation scope ----
+    ("at federation scope, both parties announced in the grant's past: the grant concludes",
+     [AN("aN", "N"), AN("aP", "P"), G("g", "N", "P", ("capacity:",), 1, ("aN", "aP"), fed=True), N_("n", "N", ("g",))],
+     [(S_, "N", "P", CAP, "n", None, "g")]),
+    ("at federation scope, signed by an unannounced node: the grant concludes nothing",
+     [AN("aP", "P"), G("g", "N", "P", ("capacity:",), 1, ("aP",), fed=True), N_("n", "N", ("g",))],
+     [(S_, "N", "P", CAP, "n", None, None), (F_, "g", "n", None, False)]),
+    ("at federation scope, naming an unannounced peer: the grant concludes nothing; held between the two, it does",
+     [AN("aN", "N"), G("gf", "N", "P", ("capacity:",), 1, ("aN",), fed=True),
+      G("gt", "N", "Q", ("capacity:",), 1, ("aN",)), N_("n", "N", ("gf", "gt"))],
+     [(S_, "N", "P", CAP, "n", None, None), (S_, "N", "Q", CAP, "n", None, "gt")]),
+    ("an announcement that is not in the grant's past does not place it at federation",
+     [G("g", "N", "P", ("capacity:",), 1, fed=True), AN("aN", "N", ("g",)), AN("aP", "P", ("g",)),
+      N_("n", "N", ("aN", "aP"))],
+     [(S_, "N", "P", CAP, "n", None, None)]),
 ]
 
-PLANTS = ("classes_unread", "prefix_no_colon", "fold_earliest", "fold_highest_id", "fold_live_only",
-          "withdraw_any_signer", "withdraw_by_past", "term_unread", "term_closed", "owner_any", "owner_two_one",
-          "revoked_unread", "revoked_backdated", "future_grant")
+PLANTS = ("classes_unread", "prefix_no_colon", "fold_earliest", "fold_highest_id", "fold_instant_first",
+          "fold_live_only", "withdraw_any_signer", "withdraw_signer_only", "withdraw_owner_now", "withdraw_by_past", "term_unread", "term_closed", "owner_any", "owner_two_one",
+          "revoked_unread", "revoked_backdated", "future_grant", "federation_unannounced")
 
 
 def ask(S, a):
@@ -189,6 +249,9 @@ def ask(S, a):
     if k == P_:
         _, p, at, now, _w = a
         return set(C.peer_set(S, p, at, now))
+    if k == BI:
+        _, x, y, at, now, _w = a
+        return C.bilateral(S, x, y, at, now)
     _, g, at, now, _w = a
     return C.in_force(S, g, at, now)
 
@@ -243,25 +306,35 @@ def fixture():
                 _, node, peer, cls, at, now, _w = a
                 js.append({"ask": "send", "node": node, "peer": peer, "class": cls, "at": at, "now": now,
                            "owner": C.owner(S, node, at), "want": got})
+            elif a[0] == BI:
+                _, x, y, at, now, _w = a
+                js.append({"ask": "bilateral", "a": x, "b": y, "at": at, "now": now, "want": got})
             elif a[0] == P_:
                 _, p, at, now, _w = a
                 js.append({"ask": "peers", "principal": p, "at": at, "now": now, "want": sorted(got)})
             else:
                 _, g, at, now, _w = a
                 js.append({"ask": "force", "grant": g, "at": at, "now": now, "want": got})
-        out.append({"name": name, "rows": [_row_json(r) for r in rows], "asks": js})
+        out.append({"name": name, "rows": [_row_json(r, S) for r in rows], "asks": js})
     return {"source": "models/causal_kernel/check_consent.py", "cases": out}
 
 
-def _row_json(r):
+def _row_json(r, S):
     k = r["kind"]
     j = {"id": r["id"], "signer": r["signer"], "names": list(r["names"])}
     if k == "grant":
-        j.update(kind="grant", peer=r["peer"], classes=list(r["classes"]), at=r["at"], until=r["until"])
+        j.update(kind="grant", peer=r["peer"], classes=list(r["classes"]), at=r["at"], until=r["until"],
+                 federation=r.get("fed", True))
     elif k in C.ENDS:
-        j.update(kind="withdrawal", of=r["of"])
+        # the owner of the withdrawn grant's signer over the withdrawal's concluded past (the crate takes it from
+        # the caller: Seats::one("owner", signer) over that past)
+        g = S.by.get(r["of"])
+        P = [q for q in S.rows if q["id"] in S.anc.get(r["id"], ()) and S.C.get(q["id"])]
+        j.update(kind="withdrawal", of=r["of"], owner_of_signer=C._owner_over(P, g["signer"]) if g else None)
     elif k == "revoke":
         j.update(kind="revocation", key=r["key"], ra=r["ra"])
+    elif k == "announce":
+        j.update(kind="announcement")
     else:
         j.update(kind="other")
     return j

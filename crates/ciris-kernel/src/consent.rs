@@ -7,17 +7,20 @@
 //! seat-shaped, an offer by one key to another that stands until withdrawn, with a class check on top.
 //!
 //! **Concluded** ([`conclude_rule`]). A grant concludes when it is well formed: one peer, and its classes non-empty
-//! entries sorted ascending with no duplicate (CC 3.3.7, "sorted ascending + deduplicated"). A withdrawal (a
-//! `withdraws` or a `recants`) concludes when the row it names is a concluded grant signed by its own signer. Any
-//! other key's withdrawal, the peer's included, concludes nothing. Other rows are the caller's rule.
+//! entries sorted ascending with no duplicate (CC 3.3.7, "sorted ascending + deduplicated"); placed at federation
+//! scope, only where both parties have announced themselves in its past. A withdrawal (a `withdraws` or a
+//! `recants`) concludes when the row it names is a concluded grant and its signer is the grant's signer, the peer
+//! it names, or the signer's owner read at the withdrawal (the Constitution, reading CC 3.3.7 whole). Any other
+//! key's withdrawal concludes nothing. Other rows are the caller's rule.
 //!
 //! **Read at a row** (`at`; `None` reads every held row).
 //! - *The past*: `at` and the rows in its causal past. A grant that is not there is not read.
 //! - *Voice*: a grant's signature counts against each of its signer's own revocations (r86, a key end is a cut)
 //!   where the grant is in the revocation's past, or states an instant before the revocation's `revoked_after`
 //!   and does not have the revocation in its past. Any other grant of a revoked key is no grant.
-//! - *The fold* ([`winners`]): CC 3.5.1 rules 2 and 3, for each (signer, peer) the grant with a voice that has the
-//!   latest `asserted_at`, then the lowest id. An earlier grant is replaced. A withdrawal or the term of the
+//! - *The fold* ([`winners`]): causal first, for each (signer, peer) the grants with a voice that no other of them
+//!   has in its past, then the latest `asserted_at`, then the lowest id: a grant with an earlier one in its past is
+//!   later whatever either states. An earlier grant is replaced (a narrowing is a `supersedes`). A withdrawal or the term of the
 //!   latest grant revives no earlier one (CC 3.3.7: on revoke the node "MUST cease replicating the named prefixes
 //!   to P").
 //! - *Withdrawn*: the end is a cut (CC 2.4.1.1, ruled 2026-11-21). A held withdrawal ends the grant at every row
@@ -48,6 +51,8 @@ pub enum Kind {
     Withdrawal,
     /// A key's own revocation ([`ConsentRow::revocation`]).
     Revocation,
+    /// A node's announcement of itself (CC 5.4.6), signed by the node.
+    Announcement,
     /// Any other row: read only as a place in the causal order.
     Other,
 }
@@ -76,6 +81,11 @@ pub trait ConsentRow: Row {
     fn until(&self) -> Option<Self::T> {
         None
     }
+    /// On a grant: it is placed at `cohort_scope: federation` (default). A grant held between the two nodes
+    /// returns false.
+    fn federation(&self) -> bool {
+        true
+    }
     /// On a withdrawal: the grant it retracts.
     fn withdraws(&self) -> Option<&Self::Id> {
         None
@@ -95,17 +105,34 @@ pub fn well_formed<R: ConsentRow>(r: &R) -> bool {
         && cs.windows(2).all(|w| w[0].as_ref() < w[1].as_ref())
 }
 
-/// The conclusion rule for the consent rows: a grant concludes when [`well_formed`]; a withdrawal when it names
-/// a concluded grant of its own signer. Every other row concludes here; the caller's own rule decides it.
-pub fn conclude_rule<R: ConsentRow>(p: &Past<'_, '_, R>) -> bool {
+/// The conclusion rule for the consent rows. A grant concludes when [`well_formed`], and, placed at federation
+/// scope, only where its signer and its peer both have an announcement in its past (CC 3.3.7: "A grant that an
+/// unannounced node signs or is named in is never placed at federation"). A withdrawal concludes when it names a
+/// concluded grant and its signer is one of three keys: the grant's signer; the peer it names (CC 2.4.1.1 rule 2,
+/// "stop sending to me"); or the signer's one owner read over the withdrawal's own past, which `owner_of(signer,
+/// past)` gives (the caller's `Seats::one("owner", signer)` over that past; `None` with none or two). Every other
+/// row concludes here; the caller's own rule decides it.
+pub fn conclude_rule<R: ConsentRow>(
+    p: &Past<'_, '_, R>,
+    owner_of: impl Fn(&R::Key, &Past<'_, '_, R>) -> Option<R::Key>,
+) -> bool {
     let r = p.row();
     match r.kind() {
-        Kind::Grant => well_formed(r),
-        Kind::Withdrawal => r
-            .withdraws()
-            .and_then(|g| p.get(g))
-            .is_some_and(|g| g.kind() == Kind::Grant && g.signer() == r.signer()),
-        Kind::Revocation | Kind::Other => true,
+        Kind::Grant => {
+            well_formed(r)
+                && (!r.federation()
+                    || r.peer().is_some_and(|peer| {
+                        let announced = |k: &R::Key| p.rows().any(|q| q.kind() == Kind::Announcement && q.signer() == k);
+                        announced(r.signer()) && announced(peer)
+                    }))
+        }
+        Kind::Withdrawal => r.withdraws().and_then(|g| p.get(g)).is_some_and(|g| {
+            g.kind() == Kind::Grant
+                && (g.signer() == r.signer()
+                    || g.peer() == Some(r.signer())
+                    || owner_of(g.signer(), p).as_ref() == Some(r.signer()))
+        }),
+        Kind::Revocation | Kind::Announcement | Kind::Other => true,
     }
 }
 
@@ -172,30 +199,30 @@ pub fn in_term<R: ConsentRow>(c: &Concluded<'_, R>, g: usize, now: Option<R::T>)
     }
 }
 
-/// The default fold read at `at`: for each (signer, peer), the concluded grant in the past with a voice that has
-/// the latest `asserted_at`, then the lowest id. `None` where `at` is not held.
+/// The default fold read at `at`, causal first ([`crate::derived::fold_default`]'s order): for each (signer,
+/// peer), of the concluded grants in the past with a voice, those no other of them has in its past; of those, the
+/// latest `asserted_at`, then the lowest id. `None` where `at` is not held.
 pub fn winners<R: ConsentRow>(c: &Concluded<'_, R>, at: Option<&R::Id>) -> Option<BTreeMap<(R::Key, R::Key), usize>> {
     let at = reading(c, at)?;
-    let mut out: BTreeMap<(R::Key, R::Key), usize> = BTreeMap::new();
+    let mut groups: BTreeMap<(R::Key, R::Key), alloc::vec::Vec<usize>> = BTreeMap::new();
     for &i in c.cs() {
         let r = c.g.row(i);
         let Some(peer) = r.peer().filter(|_| r.kind() == Kind::Grant) else { continue };
         if at.is_some_and(|a| !upto(c, i, a)) || !voice(c, i) {
             continue;
         }
-        let key = (r.signer().clone(), peer.clone());
-        let better = match out.get(&key) {
-            None => true,
-            Some(&j) => {
-                let q = c.g.row(j);
-                (r.at(), core::cmp::Reverse(r.id())) > (q.at(), core::cmp::Reverse(q.id()))
-            }
-        };
-        if better {
-            out.insert(key, i);
-        }
+        groups.entry((r.signer().clone(), peer.clone())).or_default().push(i);
     }
-    Some(out)
+    let pick = |g: &[usize]| {
+        g.iter()
+            .copied()
+            .filter(|&i| !g.iter().any(|&j| j != i && c.g.in_past(i, j)))
+            .max_by(|&a, &b| {
+                let (x, y) = (c.g.row(a), c.g.row(b));
+                (x.at(), core::cmp::Reverse(x.id())).cmp(&(y.at(), core::cmp::Reverse(y.id())))
+            })
+    };
+    Some(groups.into_iter().filter_map(|(k, g)| pick(&g).map(|i| (k, i))).collect())
 }
 
 /// Whether grant `g` (an id) is in force at `at` (`None`: over every held row), at the caller's instant `now`.
@@ -228,6 +255,12 @@ pub fn peer_set<R: ConsentRow>(
     now: Option<R::T>,
 ) -> BTreeSet<R::Key> {
     grants_in_force(c, principal, at, now).into_keys().collect()
+}
+
+/// A bilateral peering at `at`: `a`'s grant to `b` and `b`'s grant to `a`, both in force (CC 3.3.7: each
+/// direction is its own grant).
+pub fn bilateral<R: ConsentRow>(c: &Concluded<'_, R>, a: &R::Key, b: &R::Key, at: Option<&R::Id>, now: Option<R::T>) -> bool {
+    peer_set(c, a, at, now).contains(b) && peer_set(c, b, at, now).contains(a)
 }
 
 /// The node's principals: the node itself and `owner`, its one owner at `at` by the owner binding (the caller's

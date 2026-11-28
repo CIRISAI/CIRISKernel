@@ -6,14 +6,23 @@
 `consent:replication:v1` grant is one signer's directed row to one peer naming the classes it moves, and it moves
 those and nothing else. `consent::in_force`, `peer_set`, `may_send` and `replication_set`, read at a held row, over a
 new `ConsentRow` trait (kind, peer, classes, `asserted_at`, `valid_until`, the grant a withdrawal names, a key's own
-revocation), with `consent::conclude_rule` for the door (a grant's classes a sorted set; a withdrawal only by the
-grant's own signer). The fold is CC 3.5.1's default per (signer, peer): the latest `asserted_at`, then the lowest
-id, and a withdrawn or lapsed latest grant revives no earlier one. A withdrawal is a cut: it ends the grant at every
+revocation, an announcement), with `consent::conclude_rule` for the door (a grant's classes a sorted set; at
+federation scope only with both parties announced in its past; a withdrawal by the grant's signer, the peer it
+names, or the signer's owner read at the withdrawal, which the caller gives). The fold is the default fold per
+(signer, peer), causal first; a withdrawn or lapsed latest grant revives no earlier one. `consent::bilateral`: both
+directions in force. A withdrawal is a cut: it ends the grant at every
 row not in its own past, so a concurrent one ends it too. The term is half-open at the caller's instant. A grant
 counts only against its signer's own revocations where it is before them (r86). The node's principals are the node
 and its one owner, which the caller reads with `Seats::one("owner", node)`; two owners is none. The reference is
-`models/causal_kernel/consent.py`, its cases `check_consent.py` (32 cases, 81 answers, every order of up to six
-rows, 14 planted breaks), the fixture `tests/fixtures/consent.json` and the test `tests/consent.rs`.
+`models/causal_kernel/consent.py`, its cases `check_consent.py` (46 cases, 109 answers, every order of up to six
+rows, 18 planted breaks), the fixture `tests/fixtures/consent.json` and the test `tests/consent.rs`.
+
+**The default fold is causal first** (the Constitution, reading CC 3.3.7 with CC 3.5.1). `derived::fold_default`:
+of one signer's rows of the top kind on one target, a row that has another in its causal past is later, whatever
+instant either states; the signed instant, then the lowest id, orders only rows concurrent with each other. **An
+answer changes** only where one row of a signer names (through any chain) another of the same kind on the same
+target and states an earlier instant: before, the earlier-named row won; now the row that names it does. No other
+caller of the fold is in the crate, and no fixture answer changes.
 
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.
