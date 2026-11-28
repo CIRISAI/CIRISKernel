@@ -52,7 +52,7 @@ A key is named once per case and used by name everywhere else.
 | `identity_type` | a set from `user`, `node`, `agent`, `accord_holder`. `user` or `accord_holder` never with `node` or `agent` (the text refuses the mix; a case testing that refusal is a door case, not a kernel case) |
 | `kind` | how the key signs: `genesis` (as itself), `rotated` (a later key of the same identity, by a rotation record), `occurrence` (a device key bound by an `identity:occurrence`), `room` (a room key of a private room) |
 | `room` | for `kind: room`, the group (a `placement` name) the key is made for |
-| `records` | the labels of the `key:record` rows (in `rows`) that make the key live, or `"minter_supplies"`: the minter mints one self-signed `key:record` with `asserted_at` `{"$ms": 0}` and, where the end rule requires `valid_until` (`node`, `agent`, not a room key), `valid_until` `{"$ms": 7776000000}` (90 days), or the key's `supplied_until` where it states one. Every row instant of a case falls inside the record of the key that signs it **(prose)**. A case whose answer reads a key's records lists them. For an `accord_holder` key the supplied record carries MOCK custody (`attestation_evidence` under Verify's mock attestation root), and the reader's trust store is a case input (`reader.trust_store`). For a serve node a bundle seats, `minter_supplies` also covers its `identity:occurrence` binding (`identity_key_id` and `occurrence_key_id` the node, `device_class` `server`), and the minter fills the bundle's `refs.also.cites` with each supplied record and binding. A `rotated` key's `records` lists its rotation record. |
+| `records` | the labels of the `key:record` rows (in `rows`) that make the key live, or `"minter_supplies"`: the minter mints one self-signed `key:record` with `asserted_at` `{"$ms": 0}` and, where the end rule requires `valid_until` (`node`, `agent`, not a room key), `valid_until` `{"$ms": 7776000000}` (90 days: a TEST CONSTANT of the vectors, not a rule; neither the text nor Verify sets a maximum term for a node or agent key record), or the key's `supplied_until` where it states one. Every row instant of a case falls inside the record of the key that signs it **(prose)**. A case whose answer reads a key's records lists them. For an `accord_holder` key the supplied record carries MOCK custody (`attestation_evidence` under Verify's mock attestation root), and the reader's trust store is a case input (`reader.trust_store`). For a serve node a bundle seats, `minter_supplies` also covers its `identity:occurrence` binding (`identity_key_id` and `occurrence_key_id` the node, `device_class` `server`), and the minter fills the bundle's `refs.also.cites` with each supplied record and binding. A `rotated` key's `records` lists its rotation record. |
 | `supplied_until` | optional, `{"$ms": n}`: the `valid_until` of a minter-supplied record, in place of the 90-day constant |
 
 ## Placement
@@ -197,15 +197,14 @@ the CWT claims `iss`, `sub`, the edition and `iat` (RULED by the Constitution fr
 the minter writes `sub` equal to the payload's `family_key_id`, and a mismatch is the verifier's refusal. The case
 states no `sub` for a genesis bundle; the minter derives it.
 
-**What Verify v23.7.0 checks on objects and receipts.** Marked *pending the Constitution's text* where the text is
-silent.
+**What Verify v23.7.0 checks on objects and receipts**, confirmed by the Constitution as TEXT.
 
 | Object | Claims Verify checks |
 |---|---|
-| every object that is not a row | its CWT claims are a CLOSED set: `iss` (required), `-70003` = 2 (required), `iat` (optional, uint), `sub` (optional, text). Any other label is Invalid. *Pending the Constitution's text* for `sub` on objects other than a genesis bundle. |
-| `ceg-genesis-bundle/2` | `sub` is required and MUST equal the payload's `family_key_id` (refusal `statement_sub_not_family`); ruled, the text being amended |
-| `ceg-revocation-snapshot/2`, `ceg-boot-manifest/2` | `sub` is admitted and unchecked (intended: the author's identity reference for a snapshot, `build:<target>` for a boot manifest). The minter omits `sub` unless the case states one (the object's `sub` member). *Pending the Constitution's text.* |
-| a COSE receipt (RFC 9942) | protected header `{1: alg, 395: vds = 1, 4: kid, 15: {1: iss, 2: sub, 6: iat}}`; `kid` the RFC 9679 thumbprint of the receipt key. The receipt's `sub` MUST equal the registered statement's own `sub` (both absent is equal). Its `iss` MUST be the charter's Transparency Service where receipts are counted for a head. `iat` is returned to the caller unchecked. *Pending the Constitution's text* (CC 2.6.1.11 states only "the receipt carries the service's instant of issue"). |
+| every object that is not a row | its CWT claims are a CLOSED set: `iss` (required), `-70003` = 2 (required), `iat` (optional, uint), `sub` (optional, text). Any other label is Invalid. TEXT |
+| `ceg-genesis-bundle/2` | `sub` is required and MUST equal the payload's `family_key_id` (refusal `statement_sub_not_family`); TEXT |
+| `ceg-revocation-snapshot/2`, `ceg-boot-manifest/2` | `sub` is admitted and unchecked. A snapshot SHOULD carry its author's identity reference, a boot manifest `build:<target>`: the minter writes the snapshot's author by default, and a boot manifest's only where the case states it (the object's `sub` member). TEXT |
+| a COSE receipt (RFC 9942) | protected header `{1: alg, 395: vds = 1, 4: kid, 15: {1: iss, 2: sub, 6: iat}}`; `kid` the RFC 9679 thumbprint of the receipt key. The receipt's `sub` MUST equal the registered statement's own `sub` (both absent is equal). Its `iss` MUST be the charter's Transparency Service where receipts are counted for a head. `iat` is returned to the caller unchecked. TEXT |
 
 No case of the first set carries a receipt, so the fault `receipt_sub_mismatch` is not yet in the closed list; it
 is added with the first case that needs it. A `ceg-revocation-snapshot/2` is

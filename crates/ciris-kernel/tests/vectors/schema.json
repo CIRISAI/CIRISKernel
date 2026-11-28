@@ -843,7 +843,7 @@
               }
             }
           ],
-          "description": "A snapshot's or boot manifest's sub, written only where stated; never for a genesis bundle."
+          "description": "A snapshot's sub (default: its author's identity reference, a SHOULD) or a boot manifest's (build:<target>, a SHOULD), written where stated; never for a genesis bundle."
         }
       },
       "allOf": [
